@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>CEA LoL - Player Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold-light:#F0E6D3;--gold-mid:#C8AA6E;--gold-dark:#785A28;--gold-bright:#C89B3C;--blue-bright:#0BC4E3;--bg:#010A13;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-family:Inter,sans-serif;color:var(--gold-light);}
+.bg-hex{position:absolute;inset:-100px;opacity:0.06;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27115%27%3E%3Cpolygon points=%2750,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5%27 stroke=%27%23C8AA6E%27 stroke-width=%271%27 fill=%27none%27/%3E%3C/svg%3E");background-size:100px 115px;animation:hexDrift 20s linear infinite;}
+.bg-radial{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(3,38,64,.5) 0%,transparent 70%),radial-gradient(ellipse 110% 40% at 50% 0%,rgba(1,10,19,.85) 0%,transparent 55%),radial-gradient(ellipse 110% 40% at 50% 100%,rgba(1,10,19,.95) 0%,transparent 55%);}
+.top-bar{position:absolute;top:0;left:0;right:0;height:64px;background:rgba(1,10,19,.92);border-bottom:1px solid rgba(200,170,110,.25);display:flex;align-items:center;justify-content:center;gap:20px;z-index:10;}
+.top-bar-team{font-family:Cinzel,serif;font-size:24px;font-weight:700;color:var(--gold-light);letter-spacing:.08em;}
+.top-bar-label{font-family:Cinzel,serif;font-size:13px;color:var(--gold-mid);letter-spacing:.25em;text-transform:uppercase;}
+.top-bar-sep{width:4px;height:4px;background:var(--gold-bright);transform:rotate(45deg);box-shadow:0 0 6px var(--gold-bright);flex-shrink:0;}
+.bottom-bar{position:absolute;bottom:0;left:0;right:0;height:50px;background:rgba(1,10,19,.92);border-top:1px solid rgba(200,170,110,.2);display:flex;align-items:center;justify-content:center;gap:20px;z-index:10;}
+.bottom-bar-text{font-size:13px;font-weight:500;letter-spacing:.2em;color:rgba(200,170,110,.55);text-transform:uppercase;}
+.bottom-bar-sep{width:3px;height:3px;background:var(--gold-dark);transform:rotate(45deg);}
+.rows-area{position:absolute;top:64px;bottom:50px;left:0;right:0;display:flex;flex-direction:column;gap:8px;padding:16px 50px;}
+
+/* ── Row ── */
+.role-row{flex:1;display:flex;align-items:stretch;background:linear-gradient(90deg,rgba(10,20,40,.8) 0%,rgba(5,12,24,.6) 100%);border:1px solid rgba(200,170,110,.1);border-left:none;opacity:0;animation:psRowIn .45s cubic-bezier(.25,.46,.45,.94) forwards;}
+.role-row:nth-child(1){animation-delay:.08s}.role-row:nth-child(2){animation-delay:.18s}.role-row:nth-child(3){animation-delay:.28s}.role-row:nth-child(4){animation-delay:.38s}.role-row:nth-child(5){animation-delay:.48s}
+.sep{width:1px;flex-shrink:0;background:rgba(200,170,110,.07);align-self:stretch;}
+.accent{width:4px;flex-shrink:0;}
+
+/* ── Columns ── */
+.role-blk{width:78px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;}
+.role-icon{width:36px;height:36px;object-fit:contain;}
+.role-lbl{font-size:9px;font-weight:700;letter-spacing:.25em;text-transform:uppercase;}
+
+.player-blk{flex:1;min-width:0;display:flex;align-items:center;padding:0 18px;}
+.player-name{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em;}
+
+.rank-blk{width:128px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0 10px;}
+.stat-lbl{font-size:8px;font-weight:700;letter-spacing:.3em;color:rgba(200,170,110,.4);text-transform:uppercase;}
+.rank-val{font-size:15px;font-weight:700;color:var(--blue-bright);letter-spacing:.04em;text-align:center;}
+
+.wr-blk{width:108px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0 8px;}
+.wr-line{display:flex;align-items:baseline;gap:4px;}
+.wr-wins{font-family:Cinzel,serif;font-size:16px;font-weight:700;color:#5CB85C;}
+.wr-sep{font-size:13px;color:rgba(200,170,110,.35);}
+.wr-losses{font-family:Cinzel,serif;font-size:16px;font-weight:700;color:#E57373;}
+.wr-pct{font-size:10px;color:rgba(200,170,110,.55);letter-spacing:.05em;}
+
+.kda-blk{width:195px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0 10px;}
+.kda-nums{display:flex;align-items:baseline;gap:5px;}
+.kda-k{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:#5CB85C;}
+.kda-d{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:#E57373;}
+.kda-a{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:var(--gold-mid);}
+.kda-slash{font-size:17px;color:rgba(200,170,110,.3);}
+.kda-ratio{font-size:11px;color:rgba(200,170,110,.55);letter-spacing:.05em;}
+.kda-ratio em{font-style:normal;color:var(--gold-bright);font-size:13px;font-weight:700;}
+
+.rate-blk{width:125px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px;}
+.rate-item{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.rate-val{font-size:16px;font-weight:700;color:var(--gold-light);letter-spacing:.04em;}
+
+.champ-blk{width:165px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;}
+.champ-name{font-family:Cinzel,serif;font-size:16px;font-weight:700;color:var(--gold-bright);letter-spacing:.04em;text-align:center;}
+.champ-stats{font-size:10px;color:rgba(200,170,110,.55);letter-spacing:.04em;text-align:center;}
+
+@keyframes hexDrift{from{transform:translate(0,0)}to{transform:translate(100px,115px)}}
+@keyframes psRowIn{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div class="bg-hex"></div>
+<div class="bg-radial"></div>
+<div class="top-bar">
+  <span class="top-bar-team" id="ps-team">Team Alpha</span>
+  <div class="top-bar-sep"></div>
+  <span class="top-bar-label">Player Statistics</span>
+  <div class="top-bar-sep"></div>
+  <span class="top-bar-label" id="ps-event">Spring Season 2025</span>
+</div>
+<div class="rows-area" id="rows-area"></div>
+<div class="bottom-bar">
+  <span class="bottom-bar-text">Corporate Esports Association</span>
+  <div class="bottom-bar-sep"></div>
+  <span class="bottom-bar-text">League of Legends</span>
+</div>
+<script>
+const ROLE_DEFS=[
+  {key:"top",label:"Top",    icon:"icons/Position_Challenger-Top.png",    color:"#C8AA6E"},
+  {key:"jg", label:"Jungle", icon:"icons/Position_Challenger-Jungle.png", color:"#4FC65A"},
+  {key:"mid",label:"Mid",    icon:"icons/Position_Challenger-Mid.png",    color:"#0BC4E3"},
+  {key:"adc",label:"ADC",    icon:"icons/Position_Challenger-Bot.png",    color:"#E57373"},
+  {key:"sup",label:"Support",icon:"icons/Position_Challenger-Support.png",color:"#9C78E8"},
+];
+const CONFIG={
+  teamName:"Team Alpha",event:"Spring Season 2025",
+  top_name:"TopLaner",  top_rank:"Diamond I",   top_game_wins:"8", top_game_losses:"3", top_game_wr:"72%", top_match_wins:"4", top_match_losses:"2", top_match_wr:"66%", top_avg_k:"4.5", top_avg_d:"1.8", top_avg_a:"3.2", top_kda:"4.28", top_cs_min:"7.4", top_gold_min:"456", top_fav_champ:"Fiora",   top_champ_wins:"7",top_champ_losses:"2",top_champ_kda:"5.12",
+  jg_name:"Jungler",   jg_rank:"Platinum II",  jg_game_wins:"8",  jg_game_losses:"3",  jg_game_wr:"72%",  jg_match_wins:"4",  jg_match_losses:"2",  jg_match_wr:"66%",  jg_avg_k:"3.2",  jg_avg_d:"2.1",  jg_avg_a:"6.1",  jg_kda:"4.43",  jg_cs_min:"6.1",  jg_gold_min:"398", jg_fav_champ:"Vi",       jg_champ_wins:"6",jg_champ_losses:"2",jg_champ_kda:"4.87",
+  mid_name:"MidLaner", mid_rank:"Diamond II",  mid_game_wins:"8", mid_game_losses:"3", mid_game_wr:"72%", mid_match_wins:"4", mid_match_losses:"2", mid_match_wr:"66%", mid_avg_k:"5.4", mid_avg_d:"1.5", mid_avg_a:"4.1", mid_kda:"6.33", mid_cs_min:"8.2", mid_gold_min:"492",mid_fav_champ:"Syndra",  mid_champ_wins:"6",mid_champ_losses:"1",mid_champ_kda:"7.21",
+  adc_name:"ADCPlayer",adc_rank:"Gold I",      adc_game_wins:"8", adc_game_losses:"3", adc_game_wr:"72%", adc_match_wins:"4", adc_match_losses:"2", adc_match_wr:"66%", adc_avg_k:"4.9", adc_avg_d:"2.3", adc_avg_a:"2.9", adc_kda:"3.39", adc_cs_min:"8.8", adc_gold_min:"512",adc_fav_champ:"Jinx",    adc_champ_wins:"5",adc_champ_losses:"3",adc_champ_kda:"3.15",
+  sup_name:"Support",  sup_rank:"Platinum I",  sup_game_wins:"8", sup_game_losses:"3", sup_game_wr:"72%", sup_match_wins:"4", sup_match_losses:"2", sup_match_wr:"66%", sup_avg_k:"1.1", sup_avg_d:"2.7", sup_avg_a:"8.6", sup_kda:"3.59", sup_cs_min:"1.2", sup_gold_min:"251",sup_fav_champ:"Thresh",  sup_champ_wins:"7",sup_champ_losses:"2",sup_champ_kda:"4.03",
+};
+function getParams(){const q=new URLSearchParams(location.search),p={};for(const[k,v]of q)p[k]=v;return Object.keys(p).length?p:CONFIG;}
+function mk(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function tx(e,t){e.textContent=t;return e;}
+function sep(){return mk("div","sep");}
+function buildRows(p){
+  const area=document.getElementById("rows-area");
+  area.innerHTML="";
+  ROLE_DEFS.forEach(r=>{
+    const k=r.key;
+    const row=mk("div","role-row");
+    const acc=mk("div","accent");acc.style.background=r.color;acc.style.boxShadow="0 0 8px "+r.color+"80";row.appendChild(acc);
+    // Role
+    const rb=mk("div","role-blk");const ri=mk("img","role-icon");ri.src=r.icon;rb.appendChild(ri);const rl=mk("div","role-lbl");rl.textContent=r.label;rl.style.color=r.color;rb.appendChild(rl);row.appendChild(rb);row.appendChild(sep());
+    // Player name
+    const pb=mk("div","player-blk");pb.appendChild(tx(mk("div","player-name"),p[k+"_name"]||"—"));row.appendChild(pb);row.appendChild(sep());
+    // Rank
+    const rkb=mk("div","rank-blk");rkb.appendChild(tx(mk("div","stat-lbl"),"Rank"));rkb.appendChild(tx(mk("div","rank-val"),p[k+"_rank"]||"—"));row.appendChild(rkb);row.appendChild(sep());
+    // Game WR
+    const gwb=mk("div","wr-blk");gwb.appendChild(tx(mk("div","stat-lbl"),"Game W/L"));const gwl=mk("div","wr-line");gwl.appendChild(tx(mk("span","wr-wins"),(p[k+"_game_wins"]||"0")+"W"));gwl.appendChild(tx(mk("span","wr-sep"),"–"));gwl.appendChild(tx(mk("span","wr-losses"),(p[k+"_game_losses"]||"0")+"L"));gwb.appendChild(gwl);gwb.appendChild(tx(mk("div","wr-pct"),(p[k+"_game_wr"]||"—")+" Win Rate"));row.appendChild(gwb);row.appendChild(sep());
+    // Match WR
+    const mwb=mk("div","wr-blk");mwb.appendChild(tx(mk("div","stat-lbl"),"Match W/L"));const mwl=mk("div","wr-line");mwl.appendChild(tx(mk("span","wr-wins"),(p[k+"_match_wins"]||"0")+"W"));mwl.appendChild(tx(mk("span","wr-sep"),"–"));mwl.appendChild(tx(mk("span","wr-losses"),(p[k+"_match_losses"]||"0")+"L"));mwb.appendChild(mwl);mwb.appendChild(tx(mk("div","wr-pct"),(p[k+"_match_wr"]||"—")+" Match Rate"));row.appendChild(mwb);row.appendChild(sep());
+    // Avg K/D/A + KDA ratio
+    const kb=mk("div","kda-blk");kb.appendChild(tx(mk("div","stat-lbl"),"Avg K / D / A"));const kn=mk("div","kda-nums");kn.appendChild(tx(mk("span","kda-k"),p[k+"_avg_k"]||"0.0"));kn.appendChild(tx(mk("span","kda-slash"),"/"));kn.appendChild(tx(mk("span","kda-d"),p[k+"_avg_d"]||"0.0"));kn.appendChild(tx(mk("span","kda-slash"),"/"));kn.appendChild(tx(mk("span","kda-a"),p[k+"_avg_a"]||"0.0"));kb.appendChild(kn);const kr=mk("div","kda-ratio");const em=mk("em");em.textContent=p[k+"_kda"]||"—";kr.appendChild(em);kr.appendChild(document.createTextNode(" KDA"));kb.appendChild(kr);row.appendChild(kb);row.appendChild(sep());
+    // CS/min + Gold/min
+    const rateb=mk("div","rate-blk");const ci=mk("div","rate-item");ci.appendChild(tx(mk("div","stat-lbl"),"CS / min"));ci.appendChild(tx(mk("div","rate-val"),p[k+"_cs_min"]||"—"));rateb.appendChild(ci);const gi=mk("div","rate-item");gi.appendChild(tx(mk("div","stat-lbl"),"Gold / min"));gi.appendChild(tx(mk("div","rate-val"),p[k+"_gold_min"]||"—"));rateb.appendChild(gi);row.appendChild(rateb);row.appendChild(sep());
+    // Fav champ
+    const cb=mk("div","champ-blk");cb.appendChild(tx(mk("div","stat-lbl"),"Fav Champion"));cb.appendChild(tx(mk("div","champ-name"),p[k+"_fav_champ"]||"—"));const cw=p[k+"_champ_wins"]||"0",cl=p[k+"_champ_losses"]||"0",ck=p[k+"_champ_kda"]||"—";cb.appendChild(tx(mk("div","champ-stats"),cw+"W–"+cl+"L | "+ck+" KDA"));row.appendChild(cb);
+    area.appendChild(row);
+  });
+}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+const p=getParams();
+setText("ps-team",p.teamName||CONFIG.teamName);
+setText("ps-event",p.event||CONFIG.event);
+buildRows(p);
+</script>
+</body>
+</html>

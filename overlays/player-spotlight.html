@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>CEA LoL - Player Spotlight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold-light:#F0E6D3;--gold-mid:#C8AA6E;--gold-dark:#785A28;--gold-bright:#C89B3C;--blue-bright:#0BC4E3;--bg:#010A13;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-family:Inter,sans-serif;color:var(--gold-light);}
+.bg-hex{position:absolute;inset:-100px;opacity:0.05;background-size:100px 115px;animation:hexDrift 25s linear infinite;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27115%27%3E%3Cpolygon points=%2750,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5%27 stroke=%27%23C8AA6E%27 stroke-width=%271%27 fill=%27none%27/%3E%3C/svg%3E");}
+.bg-glow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1100px;height:600px;background:radial-gradient(ellipse,rgba(3,38,64,.8) 0%,transparent 70%);filter:blur(40px);}
+.bg-grad{position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(3,38,64,.45) 0%,transparent 70%),radial-gradient(ellipse 100% 40% at 50% 100%,rgba(1,10,19,.95) 0%,transparent 60%);}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--blue-bright),transparent);opacity:.2;animation:scan 7s ease-in-out infinite;}
+.bar-accent{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--gold-bright),var(--blue-bright),var(--gold-bright),transparent);animation:barPulse 3s ease-in-out infinite;}
+.top-bar{position:absolute;top:0;left:0;right:0;height:64px;background:rgba(1,10,19,.94);border-bottom:1px solid rgba(200,170,110,.25);display:flex;align-items:center;justify-content:center;gap:20px;z-index:10;}
+.top-label{font-family:Cinzel,serif;font-size:13px;font-weight:700;letter-spacing:.3em;color:var(--gold-mid);text-transform:uppercase;}
+.top-sep{width:4px;height:4px;background:var(--gold-bright);transform:rotate(45deg);box-shadow:0 0 5px var(--gold-bright);flex-shrink:0;}
+.bottom-bar{position:absolute;bottom:0;left:0;right:0;height:50px;background:rgba(1,10,19,.94);border-top:1px solid rgba(200,170,110,.2);display:flex;align-items:center;justify-content:center;gap:20px;z-index:10;}
+.bot-item{font-size:12px;font-weight:500;letter-spacing:.2em;color:rgba(200,170,110,.55);text-transform:uppercase;}
+.bot-sep{width:3px;height:3px;background:var(--gold-dark);transform:rotate(45deg);}
+.content{position:absolute;top:64px;bottom:50px;left:0;right:0;display:flex;align-items:center;justify-content:center;}
+
+/* ── Card ── */
+.card{width:1400px;background:rgba(8,18,35,.9);border:1px solid rgba(200,170,110,.2);position:relative;overflow:hidden;animation:spReveal .7s cubic-bezier(.34,1.56,.64,1) .1s both;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,170,110,.4),transparent);}
+
+/* Card header */
+.card-top{display:flex;align-items:center;padding:24px 48px 20px;gap:36px;border-bottom:1px solid rgba(200,170,110,.1);}
+.role-badge{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
+.role-icon-lg{width:52px;height:52px;object-fit:contain;}
+.role-lbl-lg{font-size:10px;font-weight:700;letter-spacing:.4em;text-transform:uppercase;}
+.card-divider-v{width:1px;height:90px;background:linear-gradient(180deg,transparent,rgba(200,170,110,.3),transparent);flex-shrink:0;}
+.player-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
+.player-name-lg{font-family:Cinzel,serif;font-size:64px;font-weight:900;letter-spacing:.06em;color:var(--gold-light);line-height:1;text-shadow:0 0 40px rgba(200,155,60,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.player-team{font-family:Cinzel,serif;font-size:16px;font-weight:700;letter-spacing:.2em;color:var(--gold-mid);text-transform:uppercase;}
+.right-info{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.rank-lbl-sm{font-size:9px;font-weight:700;letter-spacing:.35em;color:rgba(200,170,110,.4);text-transform:uppercase;}
+.rank-val-lg{font-size:26px;font-weight:700;color:var(--blue-bright);letter-spacing:.04em;text-align:right;}
+
+/* Main stats row */
+.card-stats{display:flex;padding:18px 48px;border-bottom:1px solid rgba(200,170,110,.08);}
+.stat-section{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px;}
+.stat-section+.stat-section{border-left:1px solid rgba(200,170,110,.1);}
+.ss-label{font-size:8px;font-weight:700;letter-spacing:.4em;text-transform:uppercase;color:rgba(200,170,110,.4);}
+
+/* Win rate section */
+.wr-pair{display:flex;flex-direction:column;gap:6px;align-items:center;}
+.wr-group{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.wr-group-lbl{font-size:7px;letter-spacing:.2em;text-transform:uppercase;color:rgba(200,170,110,.3);}
+.rec-mid{display:flex;align-items:baseline;gap:6px;}
+.rec-w{font-family:Cinzel,serif;font-size:28px;font-weight:700;color:#5CB85C;}
+.rec-sep{font-family:Cinzel,serif;font-size:20px;color:rgba(200,170,110,.25);}
+.rec-l{font-family:Cinzel,serif;font-size:28px;font-weight:700;color:#E57373;}
+.rec-pct{font-size:10px;color:rgba(200,170,110,.5);letter-spacing:.1em;}
+
+/* K/D/A section */
+.kda-trio{display:flex;align-items:center;}
+.kda-cell{display:flex;flex-direction:column;align-items:center;gap:3px;width:75px;}
+.kda-num{font-family:Cinzel,serif;font-size:38px;font-weight:700;line-height:1;}
+.kda-lbl{font-size:8px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;opacity:.5;}
+.kda-sep{font-size:20px;font-weight:300;color:rgba(200,170,110,.2);margin:0 4px;padding-bottom:14px;}
+.k-c{color:#5CB85C;}.d-c{color:#E57373;}.a-c{color:var(--gold-mid);}
+
+/* KDA + rate section */
+.kda-rate-group{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;}
+.kda-ratio-big{font-family:Cinzel,serif;font-size:48px;font-weight:900;color:var(--gold-bright);line-height:1;text-shadow:0 0 20px rgba(200,155,60,.5);}
+.kda-ratio-lbl{font-size:9px;font-weight:700;letter-spacing:.35em;text-transform:uppercase;color:rgba(200,170,110,.5);}
+.rate-pair{display:flex;gap:20px;}
+.rate-item{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.rate-val-lg{font-family:Cinzel,serif;font-size:24px;font-weight:700;color:var(--gold-light);}
+
+/* Champion table */
+.card-champs{padding:18px 48px 24px;}
+.champs-header{font-size:8px;font-weight:700;letter-spacing:.4em;text-transform:uppercase;color:rgba(200,170,110,.4);margin-bottom:12px;text-align:center;}
+.champs-grid{display:flex;gap:12px;}
+.champ-card{flex:1;background:rgba(200,170,110,.06);border:1px solid rgba(200,170,110,.15);padding:16px 18px;display:flex;flex-direction:column;gap:8px;}
+.champ-card-name{font-family:Cinzel,serif;font-size:20px;font-weight:700;color:var(--gold-bright);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.champ-card-games{font-size:10px;color:rgba(200,170,110,.5);letter-spacing:.05em;}
+.champ-card-wl{display:flex;gap:6px;align-items:baseline;}
+.champ-card-w{font-size:18px;font-weight:700;color:#5CB85C;font-family:Cinzel,serif;}
+.champ-card-sep{font-size:14px;color:rgba(200,170,110,.3);}
+.champ-card-l{font-size:18px;font-weight:700;color:#E57373;font-family:Cinzel,serif;}
+.champ-card-kda{font-size:13px;color:var(--gold-mid);font-weight:600;}
+
+@keyframes spReveal{from{opacity:0;transform:scale(.92);}to{opacity:1;transform:scale(1);}}
+@keyframes hexDrift{from{transform:translate(0,0)}to{transform:translate(100px,115px)}}
+@keyframes barPulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes scan{0%{top:-2px;opacity:0}10%{opacity:.2}90%{opacity:.2}100%{top:1082px;opacity:0}}
+</style>
+</head>
+<body>
+<div class="bg-hex"></div>
+<div class="bg-glow"></div>
+<div class="bg-grad"></div>
+<div class="scan-line"></div>
+<div class="bar-accent"></div>
+<div class="top-bar">
+  <span class="top-label">Player Spotlight</span>
+  <div class="top-sep"></div>
+  <span class="top-label" id="sp-event">Spring Season 2025</span>
+</div>
+<div class="content">
+  <div class="card">
+    <div class="card-top">
+      <div class="role-badge">
+        <img class="role-icon-lg" id="sp-role-icon" src="icons/Position_Challenger-Top.png" alt="role">
+        <span class="role-lbl-lg" id="sp-role-lbl" style="color:#C8AA6E">Top</span>
+      </div>
+      <div class="card-divider-v"></div>
+      <div class="player-info">
+        <div class="player-name-lg" id="sp-name">SummonerName</div>
+        <div class="player-team" id="sp-team">Team Alpha</div>
+      </div>
+      <div class="right-info">
+        <div class="rank-lbl-sm">Rank</div>
+        <div class="rank-val-lg" id="sp-rank">Diamond I</div>
+      </div>
+    </div>
+    <div class="card-stats">
+      <!-- Win Rates -->
+      <div class="stat-section">
+        <div class="ss-label">Win Rate</div>
+        <div class="wr-pair">
+          <div class="wr-group">
+            <div class="wr-group-lbl">Game</div>
+            <div class="rec-mid"><span class="rec-w" id="sp-game-wins">8W</span><span class="rec-sep">–</span><span class="rec-l" id="sp-game-losses">3L</span></div>
+            <div class="rec-pct" id="sp-game-wr">72% Win Rate</div>
+          </div>
+          <div class="wr-group">
+            <div class="wr-group-lbl">Match</div>
+            <div class="rec-mid"><span class="rec-w" id="sp-match-wins">4W</span><span class="rec-sep">–</span><span class="rec-l" id="sp-match-losses">2L</span></div>
+            <div class="rec-pct" id="sp-match-wr">66% Match Rate</div>
+          </div>
+        </div>
+      </div>
+      <!-- Avg K/D/A -->
+      <div class="stat-section">
+        <div class="ss-label">Avg K / D / A</div>
+        <div class="kda-trio">
+          <div class="kda-cell"><span class="kda-num k-c" id="sp-avg-k">4.5</span><span class="kda-lbl">Kills</span></div>
+          <span class="kda-sep">/</span>
+          <div class="kda-cell"><span class="kda-num d-c" id="sp-avg-d">1.8</span><span class="kda-lbl">Deaths</span></div>
+          <span class="kda-sep">/</span>
+          <div class="kda-cell"><span class="kda-num a-c" id="sp-avg-a">3.2</span><span class="kda-lbl">Assists</span></div>
+        </div>
+      </div>
+      <!-- KDA Ratio + CS/Gold -->
+      <div class="stat-section">
+        <div class="kda-rate-group">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <div class="ss-label">KDA Ratio</div>
+            <div class="kda-ratio-big" id="sp-kda">4.28</div>
+            <div class="kda-ratio-lbl">KDA</div>
+          </div>
+          <div class="rate-pair">
+            <div class="rate-item">
+              <div class="ss-label">CS / min</div>
+              <div class="rate-val-lg" id="sp-cs-min">7.4</div>
+            </div>
+            <div class="rate-item">
+              <div class="ss-label">Gold / min</div>
+              <div class="rate-val-lg" id="sp-gold-min">456</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Top 5 Champions -->
+    <div class="card-champs">
+      <div class="champs-header">Top Champions</div>
+      <div class="champs-grid" id="sp-champs-grid"></div>
+    </div>
+  </div>
+</div>
+<div class="bottom-bar">
+  <span class="bot-item">Corporate Esports Association</span>
+  <div class="bot-sep"></div>
+  <span class="bot-item">League of Legends</span>
+</div>
+<script>
+const ROLE_ICONS={Top:"icons/Position_Challenger-Top.png",Jungle:"icons/Position_Challenger-Jungle.png",Mid:"icons/Position_Challenger-Mid.png",ADC:"icons/Position_Challenger-Bot.png",Support:"icons/Position_Challenger-Support.png"};
+const ROLE_COLORS={Top:"#C8AA6E",Jungle:"#4FC65A",Mid:"#0BC4E3",ADC:"#E57373",Support:"#9C78E8"};
+const CONFIG={
+  name:"SummonerName",role:"Top",team:"Team Alpha",rank:"Diamond I",event:"Spring Season 2025",
+  game_wins:"8",game_losses:"3",game_wr:"72%",
+  match_wins:"4",match_losses:"2",match_wr:"66%",
+  avg_k:"4.5",avg_d:"1.8",avg_a:"3.2",kda:"4.28",
+  cs_min:"7.4",gold_min:"456",
+  champ1_name:"Fiora",   champ1_wins:"7",champ1_losses:"2",champ1_kda:"5.12",
+  champ2_name:"Garen",   champ2_wins:"5",champ2_losses:"3",champ2_kda:"3.88",
+  champ3_name:"Darius",  champ3_wins:"4",champ3_losses:"2",champ3_kda:"4.21",
+  champ4_name:"Camille", champ4_wins:"3",champ4_losses:"2",champ4_kda:"3.50",
+  champ5_name:"Jayce",   champ5_wins:"2",champ5_losses:"1",champ5_kda:"2.96",
+};
+function getParams(){const q=new URLSearchParams(location.search),p={};for(const[k,v]of q)p[k]=v;return Object.keys(p).length?p:CONFIG;}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function mk(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function tx(e,t){e.textContent=t;return e;}
+const p=getParams();
+const role=p.role||"Top";
+setText("sp-event",p.event||CONFIG.event);
+setText("sp-name",p.name||CONFIG.name);
+setText("sp-team",p.team||CONFIG.team);
+setText("sp-rank",p.rank||"—");
+const ri=document.getElementById("sp-role-icon");if(ri)ri.src=ROLE_ICONS[role]||ROLE_ICONS["Mid"];
+const rl=document.getElementById("sp-role-lbl");if(rl){rl.textContent=role;rl.style.color=ROLE_COLORS[role]||"#C8AA6E";}
+setText("sp-game-wins",(p.game_wins||"0")+"W");
+setText("sp-game-losses",(p.game_losses||"0")+"L");
+setText("sp-game-wr",(p.game_wr||"—")+" Win Rate");
+setText("sp-match-wins",(p.match_wins||"0")+"W");
+setText("sp-match-losses",(p.match_losses||"0")+"L");
+setText("sp-match-wr",(p.match_wr||"—")+" Match Rate");
+setText("sp-avg-k",p.avg_k||"—");
+setText("sp-avg-d",p.avg_d||"—");
+setText("sp-avg-a",p.avg_a||"—");
+setText("sp-kda",p.kda||"—");
+setText("sp-cs-min",p.cs_min||"—");
+setText("sp-gold-min",p.gold_min||"—");
+// Build champ cards
+const grid=document.getElementById("sp-champs-grid");
+if(grid){
+  grid.innerHTML="";
+  for(let i=1;i<=5;i++){
+    const name=p["champ"+i+"_name"];
+    if(!name)continue;
+    const w=p["champ"+i+"_wins"]||"0",l=p["champ"+i+"_losses"]||"0",kda=p["champ"+i+"_kda"]||"—";
+    const games=parseInt(w)+parseInt(l);
+    const card=mk("div","champ-card");
+    card.appendChild(tx(mk("div","champ-card-name"),name));
+    card.appendChild(tx(mk("div","champ-card-games"),games+" game"+(games!==1?"s":"")));
+    const wl=mk("div","champ-card-wl");
+    wl.appendChild(tx(mk("span","champ-card-w"),w+"W"));
+    wl.appendChild(tx(mk("span","champ-card-sep"),"–"));
+    wl.appendChild(tx(mk("span","champ-card-l"),l+"L"));
+    card.appendChild(wl);
+    card.appendChild(tx(mk("div","champ-card-kda"),kda+" KDA"));
+    grid.appendChild(card);
+  }
+}
+</script>
+</body>
+</html>

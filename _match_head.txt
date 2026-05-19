@@ -1,0 +1,37 @@
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import type { Player, CeaSettings, CeaMatchInfo, CeaImportPlayer, MatchPlayerInput } from "../types";
+
+type Step = "config" | "syncing" | "roster" | "queue" | "entry" | "done";
+
+interface RosterResult {
+  entryId: string;
+  ceaPlayers: CeaImportPlayer[];
+  matchInfos: CeaMatchInfo[];
+  error: string | null;
+}
+
+interface QueuedMatch {
+  matchId: string;
+  date: string | null;
+  status: string | null;
+  imported: boolean;
+  selected: boolean;
+}
+
+const EMPTY_PLAYER = (): MatchPlayerInput => ({
+  playerId: null, summonerName: "", champion: "",
+  kills: 0, deaths: 0, assists: 0, gold: null,
+  won: false, team: 1,
+});
+
+function emptyForm() {
+  return {
+    duration: "",
+    team1Won: true,
+    players: [
+      ...Array(5).fill(null).map(() => ({ ...EMPTY_PLAYER(), team: 1 as const })),
+      ...Array(5).fill(null).map(() => ({ ...EMPTY_PLAYER(), team: 2 as const, won: false })),
+    ] as MatchPlayerInput[],
+  };
+}

@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CEA LoL — Live Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   SHARED
+   ═══════════════════════════════════════════════════════ */
+:root {
+  --gold-light:  #F0E6D3;
+  --gold-mid:    #C8AA6E;
+  --gold-dark:   #785A28;
+  --gold-bright: #C89B3C;
+  --blue-bright: #0BC4E3;
+  --blue-mid:    #0397AB;
+  --blue-dark:   #032640;
+  --bg:          #010A13;
+  --bg-panel:    #0A1428;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+
+/* Each scene occupies the full canvas, hidden by default */
+.scene {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1080px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s ease;
+}
+.scene.active { opacity: 1; }
+
+/* Shared font */
+.f-title { font-family: 'Cinzel', serif; }
+.f-body  { font-family: 'Inter', sans-serif; }
+
+/* Shared animations */
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scan     { 0% { top: -2px; opacity: 0; } 10% { opacity: 0.3; } 90% { opacity: 0.3; } 100% { top: 1082px; opacity: 0; } }
+@keyframes dotPulse { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 6px var(--blue-bright); } }
+@keyframes badgePulse { 0%, 100% { filter: drop-shadow(0 0 8px rgba(200,170,110,0.6)); } 50% { filter: drop-shadow(0 0 20px rgba(200,170,110,1)); } }
+@keyframes hexRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes barPulse  { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+@keyframes gridDrift { from { background-position: 0 0; } to { background-position: 80px 80px; } }
+@keyframes hexDrift  { from { transform: translate(0,0); } to { transform: translate(100px,115px); } }
+@keyframes winReveal { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+@keyframes rayFade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vsReveal  { from { opacity: 0; transform: translate(-50%,-50%) scale(0.5); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+@keyframes slideRight { from { opacity: 0; transform: translateX(-80px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideLeft  { from { opacity: 0; transform: translateX(80px); }  to { opacity: 1; transform: translateX(0); } }
+@keyframes statusPulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+
+/* Shared corner svg decoration */
+.corner { position: absolute; }
+.corner svg { display: block; }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: IDLE  (transparent — shows nothing)
+   ═══════════════════════════════════════════════════════ */
+#s-idle { background: transparent; }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: STARTING SOON
+   ═══════════════════════════════════════════════════════ */
+#s-starting-soon { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--gold-light); }
+
+#s-starting-soon .bg-grid {
+  position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(12,196,227,0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(12,196,227,0.04) 1px, transparent 1px);
+  background-size: 80px 80px;
+  animation: gridDrift 30s linear infinite;
+}
+#s-starting-soon .bg-radial {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(3,38,64,0.9) 0%, transparent 70%),
+              radial-gradient(ellipse 100% 80% at 50% 100%, rgba(1,10,19,1) 40%, transparent 100%);
+}
+#s-starting-soon .scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--blue-bright), transparent);
+  opacity: 0.3;
+  animation: scan 6s ease-in-out infinite;
+}
+#s-starting-soon .corner { width: 80px; height: 80px; opacity: 0.6; }
+#s-starting-soon .c-tl { top: 30px; left: 30px; }
+#s-starting-soon .c-tr { top: 30px; right: 30px; transform: scaleX(-1); }
+#s-starting-soon .c-bl { bottom: 30px; left: 30px; transform: scaleY(-1); }
+#s-starting-soon .c-br { bottom: 30px; right: 30px; transform: scale(-1); }
+#s-starting-soon .center {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+#s-starting-soon .badge { width: 90px; height: 90px; margin-bottom: 28px; animation: badgePulse 3s ease-in-out infinite; }
+#s-starting-soon .event-label {
+  font-size: 16px; font-weight: 500; letter-spacing: 0.35em; color: var(--blue-bright);
+  text-transform: uppercase; margin-bottom: 16px;
+}
+#s-starting-soon .main-title {
+  font-family: 'Cinzel', serif; font-size: 80px; font-weight: 900; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--gold-light); text-align: center; line-height: 1;
+  text-shadow: 0 0 40px rgba(200,155,60,0.6), 0 0 80px rgba(200,155,60,0.3);
+}
+#s-starting-soon .divider {
+  display: flex; align-items: center; gap: 16px; margin: 24px 0 20px; width: 640px;
+}
+#s-starting-soon .divider-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-mid), transparent); }
+#s-starting-soon .divider-diamond { width: 8px; height: 8px; background: var(--gold-bright); transform: rotate(45deg); box-shadow: 0 0 8px rgba(200,155,60,0.8); }
+#s-starting-soon .sub-title { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 600; letter-spacing: 0.3em; color: var(--gold-mid); text-transform: uppercase; }
+#s-starting-soon .status-wrap { margin-top: 56px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+#s-starting-soon .status-bar {
+  position: relative; padding: 14px 56px; background: rgba(10,20,40,0.8);
+  clip-path: polygon(16px 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
+  border-top: 1px solid var(--gold-dark); border-bottom: 1px solid var(--gold-dark);
+}
+#s-starting-soon .status-text {
+  font-size: 18px; font-weight: 600; letter-spacing: 0.4em; color: var(--gold-mid);
+  text-transform: uppercase; animation: statusPulse 2s ease-in-out infinite;
+}
+#s-starting-soon .dots { display: flex; gap: 10px; }
+#s-starting-soon .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); }
+#s-starting-soon .dot:nth-child(1) { animation: dotPulse 1.4s ease-in-out 0.0s infinite; }
+#s-starting-soon .dot:nth-child(2) { animation: dotPulse 1.4s ease-in-out 0.2s infinite; }
+#s-starting-soon .dot:nth-child(3) { animation: dotPulse 1.4s ease-in-out 0.4s infinite; }
+#s-starting-soon .bottom-banner {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 56px;
+  background: linear-gradient(90deg, var(--blue-dark) 0%, rgba(3,38,64,0.95) 50%, var(--blue-dark) 100%);
+  border-top: 1px solid rgba(200,170,110,0.25);
+  display: flex; align-items: center; justify-content: center; gap: 32px;
+}
+#s-starting-soon .banner-item { font-size: 13px; font-weight: 500; letter-spacing: 0.15em; color: rgba(200,170,110,0.7); text-transform: uppercase; }
+#s-starting-soon .banner-sep { width: 3px; height: 3px; background: var(--gold-dark); transform: rotate(45deg); }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: MATCH INTRO
+   ═══════════════════════════════════════════════════════ */
+#s-match-intro { font-family: 'Inter', sans-serif; }
+#s-match-intro .side-blue {
+  position: absolute; inset: 0; left: 0; right: 50%;
+  background: linear-gradient(135deg, #061825 0%, #0d2a45 60%, #1A3A5C 100%);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 120px) 100%, 0 100%);
+}
+#s-match-intro .side-red {
+  position: absolute; inset: 0; left: 50%;
+  background: linear-gradient(225deg, #1a0808 0%, #2e0f0f 60%, #4A1A1A 100%);
+  clip-path: polygon(120px 0, 100% 0, 100% 100%, 0 100%);
+}
+#s-match-intro .bg-overlay {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 40% 80% at 50% 50%, rgba(1,10,19,0.5) 0%, rgba(1,10,19,0.2) 100%);
+}
+#s-match-intro .top-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 64px;
+  background: rgba(1,10,19,0.9); border-bottom: 1px solid rgba(200,170,110,0.3);
+  display: flex; align-items: center; justify-content: center; gap: 24px;
+}
+#s-match-intro .match-tag { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; letter-spacing: 0.3em; color: var(--gold-mid); text-transform: uppercase; }
+#s-match-intro .tag-sep { width: 4px; height: 4px; background: var(--gold-bright); transform: rotate(45deg); box-shadow: 0 0 6px var(--gold-bright); }
+#s-match-intro .bottom-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 54px;
+  background: rgba(1,10,19,0.9); border-top: 1px solid rgba(200,170,110,0.2);
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+}
+#s-match-intro .bottom-label { font-size: 13px; font-weight: 500; letter-spacing: 0.2em; color: rgba(200,170,110,0.6); text-transform: uppercase; }
+#s-match-intro .center-line {
+  position: absolute; top: 64px; bottom: 54px; left: 50%; width: 1px;
+  background: linear-gradient(180deg, transparent, var(--gold-dark) 20%, var(--gold-dark) 80%, transparent);
+  transform: translateX(-0.5px);
+}
+#s-match-intro .team-blue {
+  position: absolute; left: 0; top: 64px; bottom: 54px; width: 880px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding-right: 80px;
+  animation: slideRight 0.7s cubic-bezier(0.25,0.46,0.45,0.94) 0.3s both;
+}
+#s-match-intro .team-red {
+  position: absolute; right: 0; top: 64px; bottom: 54px; width: 880px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding-left: 80px;
+  animation: slideLeft 0.7s cubic-bezier(0.25,0.46,0.45,0.94) 0.3s both;
+}
+#s-match-intro .team-side-label { font-size: 12px; font-weight: 700; letter-spacing: 0.4em; text-transform: uppercase; margin-bottom: 18px; }
+#s-match-intro .team-blue .team-side-label { color: var(--blue-bright); }
+#s-match-intro .team-red  .team-side-label { color: #E57373; }
+#s-match-intro .team-name { font-family: 'Cinzel', serif; font-size: 72px; font-weight: 900; text-align: center; line-height: 1; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gold-light); }
+#s-match-intro .team-blue .team-name { text-shadow: 0 0 40px rgba(11,196,227,0.4), 0 0 80px rgba(11,196,227,0.2); }
+#s-match-intro .team-red  .team-name { text-shadow: 0 0 40px rgba(229,115,115,0.4), 0 0 80px rgba(229,115,115,0.2); }
+#s-match-intro .team-record { font-size: 16px; font-weight: 400; letter-spacing: 0.15em; color: rgba(240,230,211,0.45); margin-top: 14px; text-transform: uppercase; }
+#s-match-intro .team-stripe { width: 200px; height: 3px; margin-top: 18px; border-radius: 2px; }
+#s-match-intro .team-blue .team-stripe { background: linear-gradient(90deg, transparent, var(--blue-bright), transparent); box-shadow: 0 0 12px var(--blue-mid); }
+#s-match-intro .team-red  .team-stripe { background: linear-gradient(90deg, transparent, #E57373, transparent); box-shadow: 0 0 12px rgba(229,115,115,0.7); }
+#s-match-intro .center-block {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  display: flex; flex-direction: column; align-items: center; z-index: 10;
+  animation: vsReveal 0.8s cubic-bezier(0.34,1.56,0.64,1) 0.6s both;
+}
+#s-match-intro .vs-outer { width: 120px; height: 120px; position: relative; display: flex; align-items: center; justify-content: center; }
+#s-match-intro .vs-hex { position: absolute; inset: 0; animation: hexRotate 8s linear infinite; }
+#s-match-intro .vs-text { font-family: 'Cinzel', serif; font-size: 42px; font-weight: 900; color: var(--gold-light); text-shadow: 0 0 20px rgba(200,155,60,0.8), 0 0 40px rgba(200,155,60,0.4); letter-spacing: 0.05em; position: relative; z-index: 1; }
+#s-match-intro .div-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; width: 280px; }
+#s-match-intro .div-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-dark), transparent); }
+#s-match-intro .div-dot  { width: 5px; height: 5px; background: var(--gold-bright); transform: rotate(45deg); }
+#s-match-intro .match-number { font-size: 13px; font-weight: 600; letter-spacing: 0.25em; color: var(--gold-dark); text-transform: uppercase; margin-top: 10px; }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: LOWER THIRD  (transparent bg — overlay on game)
+   ═══════════════════════════════════════════════════════ */
+#s-lower-third { background: transparent; font-family: 'Inter', sans-serif; }
+#s-lower-third .lower-third {
+  position: absolute; bottom: 60px; left: 60px;
+  display: flex; align-items: stretch;
+  animation: slideRight 0.6s cubic-bezier(0.25,0.46,0.45,0.94) 0.2s both;
+}
+#s-lower-third .lower-third.caster { left: auto; right: 60px; flex-direction: row-reverse; }
+#s-lower-third .accent-bar { width: 4px; background: linear-gradient(180deg, var(--gold-bright), var(--gold-dark)); box-shadow: 0 0 12px rgba(200,155,60,0.6); flex-shrink: 0; }
+#s-lower-third .lower-third.caster .accent-bar { background: linear-gradient(180deg, var(--blue-bright), var(--blue-mid)); box-shadow: 0 0 12px rgba(11,196,227,0.6); }
+#s-lower-third .panel {
+  background: rgba(1,10,19,0.92);
+  border-top: 1px solid rgba(200,170,110,0.25); border-bottom: 1px solid rgba(200,170,110,0.12); border-right: 1px solid rgba(200,170,110,0.15);
+  display: flex; align-items: stretch; overflow: hidden; position: relative;
+}
+#s-lower-third .panel::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,196,227,0.05) 0%, transparent 40%); pointer-events: none; }
+#s-lower-third .role-block { padding: 0 20px; display: flex; align-items: center; justify-content: center; background: rgba(3,38,64,0.5); border-right: 1px solid rgba(200,170,110,0.12); min-width: 68px; }
+#s-lower-third .role-icon { font-size: 22px; line-height: 1; }
+#s-lower-third .text-block { padding: 16px 24px 14px 22px; display: flex; flex-direction: column; gap: 4px; min-width: 280px; }
+#s-lower-third .player-name { font-family: 'Cinzel', serif; font-size: 24px; font-weight: 700; color: var(--gold-light); letter-spacing: 0.06em; line-height: 1.1; white-space: nowrap; text-shadow: 0 0 20px rgba(200,155,60,0.4); }
+#s-lower-third .player-sub  { font-size: 12px; font-weight: 500; letter-spacing: 0.2em; color: var(--gold-mid); text-transform: uppercase; white-space: nowrap; }
+#s-lower-third .info-block  { padding: 0 22px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; border-left: 1px solid rgba(200,170,110,0.1); }
+#s-lower-third .rank-label  { font-size: 11px; font-weight: 600; letter-spacing: 0.25em; color: rgba(200,170,110,0.5); text-transform: uppercase; }
+#s-lower-third .rank-value  { font-size: 16px; font-weight: 700; color: var(--blue-bright); letter-spacing: 0.05em; white-space: nowrap; }
+#s-lower-third .team-block  { padding: 0 24px 0 20px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; border-left: 1px solid rgba(200,170,110,0.1); }
+#s-lower-third .team-label  { font-size: 11px; font-weight: 600; letter-spacing: 0.25em; color: rgba(200,170,110,0.5); text-transform: uppercase; }
+#s-lower-third .team-value  { font-family: 'Cinzel', serif; font-size: 16px; font-weight: 700; color: var(--gold-mid); letter-spacing: 0.05em; white-space: nowrap; }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: BREAK
+   ═══════════════════════════════════════════════════════ */
+#s-break { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--gold-light); }
+#s-break .hex-grid {
+  position: absolute; inset: -100px; opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='115' viewBox='0 0 100 115'%3E%3Cpolygon points='50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5' stroke='%23C8AA6E' stroke-width='1' fill='none'/%3E%3C/svg%3E");
+  background-size: 100px 115px;
+  animation: hexDrift 20s linear infinite;
+}
+#s-break .vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(3,38,64,0.6) 0%, transparent 70%),
+              radial-gradient(ellipse 120% 50% at 50% 0%,   rgba(1,10,19,0.8) 0%, transparent 60%),
+              radial-gradient(ellipse 120% 50% at 50% 100%, rgba(1,10,19,0.95) 0%, transparent 60%);
+}
+#s-break .ambient { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 800px; height: 400px; background: radial-gradient(ellipse, rgba(3,38,64,0.8) 0%, transparent 70%); filter: blur(40px); }
+#s-break .bar-top    { position: absolute; top: 0;    left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, var(--gold-bright), var(--blue-bright), var(--gold-bright), transparent); animation: barPulse 3s ease-in-out infinite; }
+#s-break .bar-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, var(--gold-bright), var(--blue-bright), var(--gold-bright), transparent); animation: barPulse 3s ease-in-out infinite 1.5s; }
+#s-break .corner { width: 100px; height: 100px; opacity: 0.5; }
+#s-break .c-tl { top: 20px; left: 20px; } #s-break .c-tr { top: 20px; right: 20px; transform: scaleX(-1); }
+#s-break .c-bl { bottom: 20px; left: 20px; transform: scaleY(-1); } #s-break .c-br { bottom: 20px; right: 20px; transform: scale(-1); }
+#s-break .side-panel { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#s-break .side-panel.left  { left: 100px; } #s-break .side-panel.right { right: 100px; }
+#s-break .score-team-name { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 700; letter-spacing: 0.15em; text-align: center; color: var(--gold-mid); max-width: 240px; }
+#s-break .score-value { font-family: 'Cinzel', serif; font-size: 80px; font-weight: 900; color: var(--gold-light); line-height: 1; text-shadow: 0 0 30px rgba(200,155,60,0.5); }
+#s-break .score-label { font-size: 11px; font-weight: 600; letter-spacing: 0.3em; color: rgba(200,170,110,0.45); text-transform: uppercase; }
+#s-break .score-divider { width: 60px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-dark), transparent); margin: 4px 0; }
+#s-break .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#s-break .brb-label { font-size: 14px; font-weight: 600; letter-spacing: 0.5em; color: var(--blue-bright); text-transform: uppercase; margin-bottom: 20px; }
+#s-break .brb-title { font-family: 'Cinzel', serif; font-size: 68px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-light); text-align: center; line-height: 1.05; text-shadow: 0 0 40px rgba(200,155,60,0.5), 0 0 80px rgba(200,155,60,0.2); }
+#s-break .divider { display: flex; align-items: center; gap: 16px; margin: 24px 0 22px; width: 500px; }
+#s-break .div-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-mid), transparent); }
+#s-break .div-hex  { width: 10px; height: 10px; background: var(--gold-bright); transform: rotate(45deg); box-shadow: 0 0 8px var(--gold-bright); }
+#s-break .brb-sub { font-size: 16px; font-weight: 400; letter-spacing: 0.2em; color: var(--gold-dark); text-transform: uppercase; text-align: center; }
+#s-break .countdown-wrap { margin-top: 48px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#s-break .countdown-label { font-size: 11px; font-weight: 600; letter-spacing: 0.4em; color: rgba(200,170,110,0.45); text-transform: uppercase; }
+#s-break .countdown-val { font-family: 'Cinzel', serif; font-size: 40px; font-weight: 700; color: var(--blue-bright); letter-spacing: 0.08em; text-shadow: 0 0 20px rgba(11,196,227,0.6); }
+#s-break .bottom-status {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 52px;
+  background: rgba(3,38,64,0.85); border-top: 1px solid rgba(200,170,110,0.2);
+  display: flex; align-items: center; justify-content: center; gap: 28px;
+}
+#s-break .status-item { font-size: 13px; font-weight: 500; letter-spacing: 0.2em; color: rgba(200,170,110,0.6); text-transform: uppercase; }
+#s-break .status-dot { width: 4px; height: 4px; background: var(--gold-dark); transform: rotate(45deg); }
+
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: MATCH RESULT
+   ═══════════════════════════════════════════════════════ */
+#s-match-result { background: var(--bg); font-family: 'Inter', sans-serif; }
+#s-match-result .bg-base {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(3,38,64,0.7) 0%, transparent 70%),
+              radial-gradient(ellipse 50% 40% at 50% 100%, rgba(1,10,19,1) 0%, transparent 70%);
+}
+#s-match-result .bg-stripes {
+  position: absolute; inset: 0;
+  background-image: repeating-linear-gradient(-60deg, transparent, transparent 60px, rgba(200,170,110,0.02) 60px, rgba(200,170,110,0.02) 61px);
+}
+#s-match-result .light-ray {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 600px; height: 600px;
+  background: conic-gradient(from -10deg at 50% 0%, transparent 0deg, rgba(200,155,60,0.06) 10deg, transparent 20deg);
+  animation: rayFade 1.5s ease 0.5s both;
+}
+#s-match-result .corner { width: 80px; height: 80px; opacity: 0.4; }
+#s-match-result .c-tl { top: 70px; left: 24px; } #s-match-result .c-tr { top: 70px; right: 24px; transform: scaleX(-1); }
+#s-match-result .c-bl { bottom: 62px; left: 24px; transform: scaleY(-1); } #s-match-result .c-br { bottom: 62px; right: 24px; transform: scale(-1); }
+#s-match-result .top-header {
+  position: absolute; top: 0; left: 0; right: 0; height: 60px;
+  background: rgba(1,10,19,0.95); border-bottom: 1px solid rgba(200,170,110,0.2);
+  display: flex; align-items: center; justify-content: center; gap: 24px;
+}
+#s-match-result .header-tag { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; letter-spacing: 0.3em; color: var(--gold-mid); text-transform: uppercase; }
+#s-match-result .header-sep { width: 4px; height: 4px; background: var(--gold-bright); transform: rotate(45deg); }
+#s-match-result .winner-banner {
+  position: absolute; top: 60px; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; padding-top: 60px;
+}
+#s-match-result .result-label { font-size: 14px; font-weight: 700; letter-spacing: 0.5em; color: var(--blue-bright); text-transform: uppercase; }
+#s-match-result .winner-name {
+  font-family: 'Cinzel', serif; font-size: 96px; font-weight: 900; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--gold-light); text-align: center; line-height: 1; margin-top: 12px;
+  text-shadow: 0 0 60px rgba(200,155,60,0.6), 0 0 120px rgba(200,155,60,0.3), 0 2px 4px rgba(0,0,0,0.8);
+  animation: winReveal 0.8s cubic-bezier(0.34,1.56,0.64,1) 0.6s both;
+}
+#s-match-result .wins-text { font-family: 'Cinzel', serif; font-size: 24px; font-weight: 600; letter-spacing: 0.25em; color: var(--gold-mid); text-transform: uppercase; margin-top: 8px; }
+#s-match-result .divider { display: flex; align-items: center; gap: 16px; margin: 28px 0; width: 700px; }
+#s-match-result .div-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-mid), transparent); }
+#s-match-result .div-gem  { width: 12px; height: 12px; background: var(--gold-bright); transform: rotate(45deg); box-shadow: 0 0 10px rgba(200,155,60,0.8); }
+#s-match-result .scoreboard {
+  position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center;
+}
+#s-match-result .score-side { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 60px; position: relative; }
+#s-match-result .score-side.winner { background: rgba(10,20,40,0.7); border-top: 2px solid var(--gold-bright); }
+#s-match-result .score-side.loser  { background: rgba(10,10,10,0.5); border-top: 1px solid rgba(100,100,100,0.3); }
+#s-match-result .score-side-label { font-size: 11px; font-weight: 700; letter-spacing: 0.35em; text-transform: uppercase; }
+#s-match-result .score-side.winner .score-side-label { color: var(--blue-bright); }
+#s-match-result .score-side.loser  .score-side-label { color: rgba(150,150,150,0.6); }
+#s-match-result .score-team { font-family: 'Cinzel', serif; font-size: 28px; font-weight: 700; letter-spacing: 0.08em; text-align: center; max-width: 300px; text-transform: uppercase; }
+#s-match-result .score-side.winner .score-team { color: var(--gold-light); }
+#s-match-result .score-side.loser  .score-team { color: rgba(200,200,200,0.4); }
+#s-match-result .score-num { font-family: 'Cinzel', serif; font-size: 72px; font-weight: 900; line-height: 1; }
+#s-match-result .score-side.winner .score-num { color: var(--gold-light); text-shadow: 0 0 30px rgba(200,155,60,0.6); }
+#s-match-result .score-side.loser  .score-num { color: rgba(160,160,160,0.35); }
+#s-match-result .score-wins-label { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; }
+#s-match-result .score-side.winner .score-wins-label { color: rgba(200,170,110,0.6); }
+#s-match-result .score-side.loser  .score-wins-label { color: rgba(100,100,100,0.5); }
+#s-match-result .score-mid { padding: 28px 32px; display: flex; align-items: center; justify-content: center; }
+#s-match-result .score-colon { font-family: 'Cinzel', serif; font-size: 48px; font-weight: 900; color: rgba(200,170,110,0.3); line-height: 1; }
+#s-match-result .winner-badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--gold-bright); padding: 3px 16px; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+#s-match-result .winner-badge-text { font-size: 10px; font-weight: 700; letter-spacing: 0.3em; color: var(--bg); text-transform: uppercase; }
+#s-match-result .bottom-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 52px;
+  background: rgba(1,10,19,0.95); border-top: 1px solid rgba(200,170,110,0.2);
+  display: flex; align-items: center; justify-content: center; gap: 24px;
+}
+#s-match-result .bottom-item { font-size: 13px; font-weight: 500; letter-spacing: 0.18em; color: rgba(200,170,110,0.55); text-transform: uppercase; }
+#s-match-result .bottom-sep { width: 3px; height: 3px; background: var(--gold-dark); transform: rotate(45deg); }
+
+@keyframes psRowIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: PLAYER STATS
+   ═══════════════════════════════════════════════════════ */
+#s-player-stats { background: var(--bg); }
+#s-player-stats .ps-bg-hex { position:absolute; inset:-100px; opacity:0.05; background-size:100px 115px; animation:hexDrift 25s linear infinite; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='115'%3E%3Cpolygon points='50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5' stroke='%23C8AA6E' stroke-width='1' fill='none'/%3E%3C/svg%3E"); }
+#s-player-stats .ps-bg-grad { position:absolute; inset:0; background:radial-gradient(ellipse 90% 50% at 50% 20%,rgba(3,38,64,.55) 0%,transparent 70%),radial-gradient(ellipse 100% 40% at 50% 100%,rgba(1,10,19,.85) 0%,transparent 60%); }
+#s-player-stats .ps-top { position:absolute; top:0; left:0; right:0; height:64px; background:rgba(1,10,19,.96); border-bottom:1px solid rgba(200,170,110,.25); display:flex; align-items:center; justify-content:center; gap:24px; }
+#s-player-stats .ps-team { font-family:'Cinzel',serif; font-size:24px; font-weight:900; letter-spacing:.12em; color:var(--gold-light); text-transform:uppercase; text-shadow:0 0 20px rgba(200,155,60,.4); }
+#s-player-stats .ps-lbl  { font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.3em; color:var(--gold-mid); text-transform:uppercase; }
+#s-player-stats .ps-sep  { width:4px; height:4px; background:var(--gold-bright); transform:rotate(45deg); box-shadow:0 0 5px var(--gold-bright); }
+#s-player-stats .ps-bot  { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(1,10,19,.96); border-top:1px solid rgba(200,170,110,.2); display:flex; align-items:center; justify-content:center; gap:20px; }
+#s-player-stats .ps-bot-item { font-size:12px; font-weight:500; letter-spacing:.2em; color:rgba(200,170,110,.55); text-transform:uppercase; }
+#s-player-stats .ps-bot-sep  { width:3px; height:3px; background:var(--gold-dark); transform:rotate(45deg); }
+#s-player-stats .ps-rows { position:absolute; top:64px; bottom:50px; left:0; right:0; display:flex; flex-direction:column; padding:16px 50px; gap:8px; }
+#s-player-stats .ps-row  { flex:1; display:flex; align-items:stretch; background:linear-gradient(90deg,rgba(10,20,40,.82) 0%,rgba(5,12,24,.62) 100%); border:1px solid rgba(200,170,110,.1); border-left:none; position:relative; overflow:hidden; opacity:0; animation:psRowIn .55s cubic-bezier(.25,.46,.45,.94) both; }
+#s-player-stats .ps-row:nth-child(1){animation-delay:.08s} #s-player-stats .ps-row:nth-child(2){animation-delay:.18s}
+#s-player-stats .ps-row:nth-child(3){animation-delay:.28s} #s-player-stats .ps-row:nth-child(4){animation-delay:.38s}
+#s-player-stats .ps-row:nth-child(5){animation-delay:.48s}
+#s-player-stats .ps-accent { width:4px; flex-shrink:0; }
+#s-player-stats .ps-row-top .ps-accent { background:#C8AA6E; box-shadow:0 0 8px #C8AA6E55; }
+#s-player-stats .ps-row-jg  .ps-accent { background:#4FC65A; box-shadow:0 0 8px #4FC65A55; }
+#s-player-stats .ps-row-mid .ps-accent { background:#0BC4E3; box-shadow:0 0 8px #0BC4E355; }
+#s-player-stats .ps-row-adc .ps-accent { background:#E57373; box-shadow:0 0 8px #E5737355; }
+#s-player-stats .ps-row-sup .ps-accent { background:#9C78E8; box-shadow:0 0 8px #9C78E855; }
+#s-player-stats .ps-sep-v { width:1px; background:rgba(200,170,110,.07); flex-shrink:0; align-self:stretch; }
+#s-player-stats .ps-role-blk { width:80px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+#s-player-stats .ps-role-icon { width:34px; height:34px; object-fit:contain; }
+#s-player-stats .ps-role-lbl  { font-size:8px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; }
+#s-player-stats .ps-row-top .ps-role-lbl { color:#C8AA6E; } #s-player-stats .ps-row-jg  .ps-role-lbl { color:#4FC65A; }
+#s-player-stats .ps-row-mid .ps-role-lbl { color:#0BC4E3; } #s-player-stats .ps-row-adc .ps-role-lbl { color:#E57373; }
+#s-player-stats .ps-row-sup .ps-role-lbl { color:#9C78E8; }
+#s-player-stats .ps-player-blk { flex:1; min-width:0; display:flex; align-items:center; padding:0 18px; }
+#s-player-stats .ps-pname { font-family:'Cinzel',serif; font-size:22px; font-weight:700; letter-spacing:.05em; color:var(--gold-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#s-player-stats .ps-rank-blk { width:128px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 8px; gap:3px; }
+#s-player-stats .ps-slbl { font-size:8px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; color:rgba(200,170,110,.4); }
+#s-player-stats .ps-rankval { font-size:15px; font-weight:700; color:var(--blue-bright); text-align:center; }
+#s-player-stats .ps-wr-blk { width:110px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 6px; gap:3px; }
+#s-player-stats .ps-rec-row  { display:flex; align-items:baseline; gap:4px; }
+#s-player-stats .ps-recw { font-family:'Cinzel',serif; font-size:16px; font-weight:700; color:#5CB85C; }
+#s-player-stats .ps-recd { font-size:12px; color:rgba(200,170,110,.3); }
+#s-player-stats .ps-recl { font-family:'Cinzel',serif; font-size:16px; font-weight:700; color:#E57373; }
+#s-player-stats .ps-recpct { font-size:9px; color:rgba(200,170,110,.5); letter-spacing:.04em; }
+#s-player-stats .ps-kda-blk { width:195px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 8px; gap:3px; }
+#s-player-stats .ps-kda-row { display:flex; align-items:center; }
+#s-player-stats .ps-kda-cell { display:flex; flex-direction:column; align-items:center; gap:2px; width:52px; }
+#s-player-stats .ps-kdanum { font-family:'Cinzel',serif; font-size:22px; font-weight:700; line-height:1; }
+#s-player-stats .ps-kdalbl { font-size:8px; font-weight:700; letter-spacing:.25em; text-transform:uppercase; opacity:.45; }
+#s-player-stats .ps-kda-sep { font-size:15px; font-weight:300; color:rgba(200,170,110,.2); margin:0 4px; padding-bottom:8px; }
+#s-player-stats .ps-k { color:#5CB85C; } #s-player-stats .ps-d { color:#E57373; } #s-player-stats .ps-a { color:var(--gold-mid); }
+#s-player-stats .ps-kda-ratio { font-size:11px; color:rgba(200,170,110,.5); }
+#s-player-stats .ps-kda-ratio em { font-style:normal; color:var(--gold-bright); font-size:13px; font-weight:700; }
+#s-player-stats .ps-rate-blk { width:125px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:0 6px; }
+#s-player-stats .ps-rate-item { display:flex; flex-direction:column; align-items:center; gap:2px; }
+#s-player-stats .ps-rateval { font-size:16px; font-weight:700; color:var(--gold-light); }
+#s-player-stats .ps-champ-blk { width:160px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0 8px; }
+#s-player-stats .ps-champname { font-family:'Cinzel',serif; font-size:15px; font-weight:700; color:var(--gold-bright); text-align:center; }
+#s-player-stats .ps-champstats { font-size:10px; color:rgba(200,170,110,.5); text-align:center; }
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: MATCHUP STATS
+   ═══════════════════════════════════════════════════════ */
+#s-matchup-stats { background: var(--bg); }
+#s-matchup-stats .ms-bg-hex { position:absolute; inset:-100px; opacity:0.05; background-size:100px 115px; animation:hexDrift 25s linear infinite; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='115'%3E%3Cpolygon points='50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5' stroke='%23C8AA6E' stroke-width='1' fill='none'/%3E%3C/svg%3E"); }
+#s-matchup-stats .ms-bg-grad { position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(3,38,64,.5) 0%,transparent 70%),radial-gradient(ellipse 110% 40% at 50% 100%,rgba(1,10,19,.9) 0%,transparent 55%); }
+#s-matchup-stats .ms-top { position:absolute; top:0; left:0; right:0; height:64px; background:rgba(1,10,19,.96); border-bottom:1px solid rgba(200,170,110,.25); display:flex; align-items:center; justify-content:center; gap:16px; }
+#s-matchup-stats .ms-t1 { font-family:'Cinzel',serif; font-size:22px; font-weight:700; color:#0BC4E3; letter-spacing:.08em; }
+#s-matchup-stats .ms-vs { font-family:'Cinzel',serif; font-size:18px; font-weight:700; color:var(--gold-mid); letter-spacing:.2em; }
+#s-matchup-stats .ms-t2 { font-family:'Cinzel',serif; font-size:22px; font-weight:700; color:#E57373; letter-spacing:.08em; }
+#s-matchup-stats .ms-sep { width:4px; height:4px; background:var(--gold-bright); transform:rotate(45deg); box-shadow:0 0 5px var(--gold-bright); }
+#s-matchup-stats .ms-ev  { font-family:'Cinzel',serif; font-size:13px; color:var(--gold-mid); letter-spacing:.2em; text-transform:uppercase; }
+#s-matchup-stats .ms-bot { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(1,10,19,.96); border-top:1px solid rgba(200,170,110,.2); display:flex; align-items:center; justify-content:center; gap:20px; }
+#s-matchup-stats .ms-bot-item { font-size:12px; font-weight:500; letter-spacing:.2em; color:rgba(200,170,110,.55); text-transform:uppercase; }
+#s-matchup-stats .ms-bot-sep  { width:3px; height:3px; background:var(--gold-dark); transform:rotate(45deg); }
+#s-matchup-stats .ms-rows { position:absolute; top:64px; bottom:50px; left:0; right:0; display:flex; flex-direction:column; padding:16px 50px; gap:8px; }
+#s-matchup-stats .ms-row { flex:1; display:flex; align-items:stretch; background:linear-gradient(90deg,rgba(10,20,40,.82) 0%,rgba(5,12,24,.62) 100%); border:1px solid rgba(200,170,110,.1); overflow:hidden; opacity:0; animation:psRowIn .55s cubic-bezier(.25,.46,.45,.94) both; }
+#s-matchup-stats .ms-row:nth-child(1){animation-delay:.08s} #s-matchup-stats .ms-row:nth-child(2){animation-delay:.18s}
+#s-matchup-stats .ms-row:nth-child(3){animation-delay:.28s} #s-matchup-stats .ms-row:nth-child(4){animation-delay:.38s}
+#s-matchup-stats .ms-row:nth-child(5){animation-delay:.48s}
+#s-matchup-stats .ms-b-acc { width:4px; flex-shrink:0; background:#0BC4E3; box-shadow:0 0 8px #0BC4E355; }
+#s-matchup-stats .ms-r-acc { width:4px; flex-shrink:0; background:#E57373; box-shadow:0 0 8px #E5737355; }
+#s-matchup-stats .ms-sep-v { width:1px; background:rgba(200,170,110,.07); flex-shrink:0; align-self:stretch; }
+#s-matchup-stats .ms-b-player { flex:1; min-width:0; display:flex; align-items:center; padding:0 16px; }
+#s-matchup-stats .ms-r-player { flex:1; min-width:0; display:flex; align-items:center; justify-content:flex-end; padding:0 16px; }
+#s-matchup-stats .ms-bname { font-family:'Cinzel',serif; font-size:20px; font-weight:700; color:var(--gold-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:.04em; }
+#s-matchup-stats .ms-rname { font-family:'Cinzel',serif; font-size:20px; font-weight:700; color:var(--gold-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:.04em; text-align:right; }
+#s-matchup-stats .ms-slbl { font-size:8px; font-weight:700; letter-spacing:.3em; color:rgba(200,170,110,.4); text-transform:uppercase; }
+#s-matchup-stats .ms-wr-blk { width:120px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:0 6px; }
+#s-matchup-stats .ms-wr-sub { display:flex; flex-direction:column; gap:4px; align-items:center; }
+#s-matchup-stats .ms-wr-row { display:flex; flex-direction:column; align-items:center; gap:1px; }
+#s-matchup-stats .ms-wr-sub-lbl { font-size:7px; color:rgba(200,170,110,.3); letter-spacing:.2em; text-transform:uppercase; }
+#s-matchup-stats .ms-rec-row { display:flex; align-items:baseline; gap:3px; }
+#s-matchup-stats .ms-rw { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:#5CB85C; }
+#s-matchup-stats .ms-rs { font-size:11px; color:rgba(200,170,110,.3); }
+#s-matchup-stats .ms-rl { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:#E57373; }
+#s-matchup-stats .ms-recpct { font-size:9px; color:rgba(200,170,110,.5); }
+#s-matchup-stats .ms-kda-blk { width:165px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:0 8px; }
+#s-matchup-stats .ms-kda-row { display:flex; align-items:baseline; gap:4px; }
+#s-matchup-stats .ms-knum { font-family:'Cinzel',serif; font-size:19px; font-weight:700; }
+#s-matchup-stats .ms-ksep { font-size:14px; color:rgba(200,170,110,.3); }
+#s-matchup-stats .ms-kc { color:#5CB85C; } #s-matchup-stats .ms-dc { color:#E57373; } #s-matchup-stats .ms-ac { color:var(--gold-mid); }
+#s-matchup-stats .ms-kdaratio { font-size:10px; color:rgba(200,170,110,.5); }
+#s-matchup-stats .ms-kdaratio em { font-style:normal; color:var(--gold-bright); font-size:12px; font-weight:700; }
+#s-matchup-stats .ms-rate-blk { width:105px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:0 6px; }
+#s-matchup-stats .ms-rate-item { display:flex; flex-direction:column; align-items:center; gap:1px; }
+#s-matchup-stats .ms-rateval { font-size:14px; font-weight:700; color:var(--gold-light); }
+#s-matchup-stats .ms-vs-blk { width:96px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-left:1px solid rgba(200,170,110,.1); border-right:1px solid rgba(200,170,110,.1); }
+#s-matchup-stats .ms-vs-icon { width:32px; height:32px; object-fit:contain; }
+#s-matchup-stats .ms-vs-txt  { font-size:10px; font-weight:700; letter-spacing:.2em; color:var(--gold-mid); text-transform:uppercase; }
+
+/* ═══════════════════════════════════════════════════════
+   SCENE: PLAYER SPOTLIGHT
+   ═══════════════════════════════════════════════════════ */
+#s-player-spotlight { background: var(--bg); }
+#s-player-spotlight .sp-bg-hex { position:absolute; inset:-100px; opacity:0.05; background-size:100px 115px; animation:hexDrift 25s linear infinite; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='115'%3E%3Cpolygon points='50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5' stroke='%23C8AA6E' stroke-width='1' fill='none'/%3E%3C/svg%3E"); }
+#s-player-spotlight .sp-bg-glow { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:1100px; height:600px; background:radial-gradient(ellipse,rgba(3,38,64,.8) 0%,transparent 70%); filter:blur(40px); }
+#s-player-spotlight .sp-bg-grad { position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(3,38,64,.45) 0%,transparent 70%),radial-gradient(ellipse 100% 40% at 50% 100%,rgba(1,10,19,.95) 0%,transparent 60%); }
+#s-player-spotlight .sp-scan { position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--blue-bright),transparent); opacity:0.2; animation:scan 7s ease-in-out infinite; }
+#s-player-spotlight .sp-top { position:absolute; top:0; left:0; right:0; height:64px; background:rgba(1,10,19,.96); border-bottom:1px solid rgba(200,170,110,.25); display:flex; align-items:center; justify-content:center; gap:20px; }
+#s-player-spotlight .sp-top-lbl { font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.3em; color:var(--gold-mid); text-transform:uppercase; }
+#s-player-spotlight .sp-top-sep { width:4px; height:4px; background:var(--gold-bright); transform:rotate(45deg); box-shadow:0 0 5px var(--gold-bright); }
+#s-player-spotlight .sp-bot { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(1,10,19,.96); border-top:1px solid rgba(200,170,110,.2); display:flex; align-items:center; justify-content:center; gap:20px; }
+#s-player-spotlight .sp-bot-item { font-size:12px; font-weight:500; letter-spacing:.2em; color:rgba(200,170,110,.55); text-transform:uppercase; }
+#s-player-spotlight .sp-bot-sep  { width:3px; height:3px; background:var(--gold-dark); transform:rotate(45deg); }
+#s-player-spotlight .sp-content { position:absolute; top:64px; bottom:50px; left:0; right:0; display:flex; align-items:center; justify-content:center; }
+#s-player-spotlight .sp-card { width:1400px; background:rgba(8,18,35,.9); border:1px solid rgba(200,170,110,.2); position:relative; overflow:hidden; animation:winReveal .7s cubic-bezier(.34,1.56,.64,1) .1s both; }
+#s-player-spotlight .sp-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(200,170,110,.4),transparent); }
+#s-player-spotlight .sp-card-top { display:flex; align-items:center; padding:22px 48px 18px; gap:36px; border-bottom:1px solid rgba(200,170,110,.1); }
+#s-player-spotlight .sp-role-badge { display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; }
+#s-player-spotlight .sp-role-icon { width:50px; height:50px; object-fit:contain; }
+#s-player-spotlight .sp-role-lbl  { font-size:10px; font-weight:700; letter-spacing:.4em; text-transform:uppercase; }
+#s-player-spotlight .sp-div-v { width:1px; height:90px; background:linear-gradient(180deg,transparent,rgba(200,170,110,.3),transparent); flex-shrink:0; }
+#s-player-spotlight .sp-pinfo { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+#s-player-spotlight .sp-pname { font-family:'Cinzel',serif; font-size:62px; font-weight:900; letter-spacing:.06em; color:var(--gold-light); line-height:1; text-shadow:0 0 40px rgba(200,155,60,.5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#s-player-spotlight .sp-pteam { font-family:'Cinzel',serif; font-size:16px; font-weight:700; letter-spacing:.2em; color:var(--gold-mid); text-transform:uppercase; }
+#s-player-spotlight .sp-rinfo { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+#s-player-spotlight .sp-rank-lbl { font-size:9px; font-weight:700; letter-spacing:.35em; color:rgba(200,170,110,.4); text-transform:uppercase; }
+#s-player-spotlight .sp-rank-val { font-size:26px; font-weight:700; color:var(--blue-bright); letter-spacing:.04em; text-align:right; }
+#s-player-spotlight .sp-stats { display:flex; padding:16px 48px; border-bottom:1px solid rgba(200,170,110,.08); }
+#s-player-spotlight .sp-ss { flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; padding:0 16px; }
+#s-player-spotlight .sp-ss+.sp-ss { border-left:1px solid rgba(200,170,110,.1); }
+#s-player-spotlight .sp-ss-lbl { font-size:8px; font-weight:700; letter-spacing:.4em; text-transform:uppercase; color:rgba(200,170,110,.4); }
+#s-player-spotlight .sp-wr-pair { display:flex; flex-direction:column; gap:6px; align-items:center; }
+#s-player-spotlight .sp-wr-group { display:flex; flex-direction:column; align-items:center; gap:1px; }
+#s-player-spotlight .sp-wr-sub-lbl { font-size:7px; color:rgba(200,170,110,.3); letter-spacing:.2em; text-transform:uppercase; }
+#s-player-spotlight .sp-rec-big { display:flex; align-items:baseline; gap:6px; }
+#s-player-spotlight .sp-rw { font-family:'Cinzel',serif; font-size:28px; font-weight:700; color:#5CB85C; }
+#s-player-spotlight .sp-rd { font-family:'Cinzel',serif; font-size:20px; color:rgba(200,170,110,.25); }
+#s-player-spotlight .sp-rl { font-family:'Cinzel',serif; font-size:28px; font-weight:700; color:#E57373; }
+#s-player-spotlight .sp-recpct { font-size:10px; color:rgba(200,170,110,.5); letter-spacing:.1em; }
+#s-player-spotlight .sp-kda-trio { display:flex; align-items:center; }
+#s-player-spotlight .sp-kda-cell { display:flex; flex-direction:column; align-items:center; gap:3px; width:72px; }
+#s-player-spotlight .sp-knum { font-family:'Cinzel',serif; font-size:36px; font-weight:700; line-height:1; }
+#s-player-spotlight .sp-klbl { font-size:8px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; opacity:.5; }
+#s-player-spotlight .sp-ksep { font-size:20px; font-weight:300; color:rgba(200,170,110,.2); margin:0 4px; padding-bottom:12px; }
+#s-player-spotlight .sp-kc { color:#5CB85C; } #s-player-spotlight .sp-dc { color:#E57373; } #s-player-spotlight .sp-ac { color:var(--gold-mid); }
+#s-player-spotlight .sp-kda-rate { display:flex; flex-direction:column; align-items:center; gap:10px; }
+#s-player-spotlight .sp-kda-big { font-family:'Cinzel',serif; font-size:48px; font-weight:900; color:var(--gold-bright); line-height:1; text-shadow:0 0 20px rgba(200,155,60,.5); }
+#s-player-spotlight .sp-kda-lbl { font-size:9px; font-weight:700; letter-spacing:.35em; text-transform:uppercase; color:rgba(200,170,110,.5); }
+#s-player-spotlight .sp-rate-pair { display:flex; gap:16px; }
+#s-player-spotlight .sp-rate-item { display:flex; flex-direction:column; align-items:center; gap:2px; }
+#s-player-spotlight .sp-rate-val  { font-family:'Cinzel',serif; font-size:22px; font-weight:700; color:var(--gold-light); }
+#s-player-spotlight .sp-champs { padding:18px 48px 24px; }
+#s-player-spotlight .sp-champs-lbl { font-size:8px; font-weight:700; letter-spacing:.4em; text-transform:uppercase; color:rgba(200,170,110,.4); margin-bottom:12px; text-align:center; }
+#s-player-spotlight .sp-champs-grid { display:flex; gap:12px; }
+#s-player-spotlight .sp-champ-card { flex:1; background:rgba(200,170,110,.06); border:1px solid rgba(200,170,110,.15); padding:16px 18px; display:flex; flex-direction:column; gap:8px; }
+#s-player-spotlight .sp-champ-name { font-family:'Cinzel',serif; font-size:20px; font-weight:700; color:var(--gold-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#s-player-spotlight .sp-champ-wl { display:flex; gap:6px; align-items:baseline; }
+#s-player-spotlight .sp-champ-w { font-size:18px; font-weight:700; color:#5CB85C; font-family:'Cinzel',serif; }
+#s-player-spotlight .sp-champ-s { font-size:14px; color:rgba(200,170,110,.3); }
+#s-player-spotlight .sp-champ-l { font-size:18px; font-weight:700; color:#E57373; font-family:'Cinzel',serif; }
+#s-player-spotlight .sp-champ-kda { font-size:13px; color:var(--gold-mid); font-weight:600; }
+</style>
+</head>
+<body>
+
+<!-- ─── SCENE: IDLE ─────────────────────────────────── -->
+<div class="scene active" id="s-idle"></div>
+
+<!-- ─── SCENE: STARTING SOON ───────────────────────── -->
+<div class="scene" id="s-starting-soon">
+  <div class="bg-grid"></div>
+  <div class="bg-radial"></div>
+  <div class="scan-line"></div>
+  <div class="corner c-tl"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M2 78 L2 2 L78 2" stroke="#C8AA6E" stroke-width="2"/><path d="M2 2 L22 2 M2 2 L2 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-tr"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M2 78 L2 2 L78 2" stroke="#C8AA6E" stroke-width="2"/><path d="M2 2 L22 2 M2 2 L2 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-bl"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M2 78 L2 2 L78 2" stroke="#C8AA6E" stroke-width="2"/><path d="M2 2 L22 2 M2 2 L2 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-br"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M2 78 L2 2 L78 2" stroke="#C8AA6E" stroke-width="2"/><path d="M2 2 L22 2 M2 2 L2 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="center">
+    <svg class="badge" viewBox="0 0 90 90" fill="none"><polygon points="45,4 86,45 45,86 4,45" stroke="#C8AA6E" stroke-width="2" fill="rgba(3,38,64,0.8)"/><polygon points="45,14 76,45 45,76 14,45" stroke="#C89B3C" stroke-width="1.5" fill="none"/><circle cx="45" cy="45" r="12" fill="#C8AA6E" opacity="0.15"/><polygon points="45,28 62,45 45,62 28,45" fill="#C8AA6E" opacity="0.3"/><circle cx="45" cy="45" r="5" fill="#C89B3C"/></svg>
+    <div class="event-label" id="ss-event">Spring Season 2025</div>
+    <div class="main-title">CEA League of Legends</div>
+    <div class="divider"><div class="divider-line"></div><div class="divider-diamond"></div><div class="divider-line"></div></div>
+    <div class="sub-title">Corporate Esports Association</div>
+    <div class="status-wrap">
+      <div class="status-bar"><div class="status-text">Broadcast Starting Soon</div></div>
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+  </div>
+  <div class="bottom-banner">
+    <span class="banner-item">Corporate Esports Association</span>
+    <div class="banner-sep"></div>
+    <span class="banner-item" id="ss-banner-event">Spring Season 2025</span>
+    <div class="banner-sep"></div>
+    <span class="banner-item">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: MATCH INTRO ─────────────────────────── -->
+<div class="scene" id="s-match-intro">
+  <div class="side-blue"></div>
+  <div class="side-red"></div>
+  <div class="bg-overlay"></div>
+  <div class="top-bar">
+    <span class="match-tag" id="mi-event">Spring Season 2025</span>
+    <div class="tag-sep"></div>
+    <span class="match-tag" id="mi-round">Quarterfinals</span>
+    <div class="tag-sep"></div>
+    <span class="match-tag" id="mi-format">Best of 3</span>
+  </div>
+  <div class="center-line"></div>
+  <div class="team-blue">
+    <div class="team-side-label">Blue Side</div>
+    <div class="team-name" id="mi-team1">Team Alpha</div>
+    <div class="team-stripe"></div>
+    <div class="team-record" id="mi-record1">6W – 2L</div>
+  </div>
+  <div class="center-block">
+    <div class="vs-outer">
+      <svg class="vs-hex" viewBox="0 0 120 120" fill="none"><polygon points="60,4 112,32 112,88 60,116 8,88 8,32" stroke="#C8AA6E" stroke-width="1.5" fill="none" opacity="0.5"/><polygon points="60,14 102,38 102,82 60,106 18,82 18,38" stroke="#785A28" stroke-width="1" fill="none" opacity="0.4"/></svg>
+      <div class="vs-text">VS</div>
+    </div>
+    <div class="div-row"><div class="div-line"></div><div class="div-dot"></div><div class="div-line"></div></div>
+    <div class="match-number" id="mi-matchnum">Match 1 of 3</div>
+  </div>
+  <div class="team-red">
+    <div class="team-side-label">Red Side</div>
+    <div class="team-name" id="mi-team2">Team Bravo</div>
+    <div class="team-stripe"></div>
+    <div class="team-record" id="mi-record2">5W – 3L</div>
+  </div>
+  <div class="bottom-bar">
+    <span class="bottom-label">Corporate Esports Association</span>
+    <div class="tag-sep" style="background:rgba(200,170,110,0.4)"></div>
+    <span class="bottom-label">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: LOWER THIRD ─────────────────────────── -->
+<div class="scene" id="s-lower-third">
+  <!-- Player lower third -->
+  <div class="lower-third" id="lt-player">
+    <div class="accent-bar"></div>
+    <div class="panel">
+      <div class="role-block"><div class="role-icon" id="lt-role-icon">⚔</div></div>
+      <div class="text-block">
+        <div class="player-name" id="lt-name">SummonerName</div>
+        <div class="player-sub" id="lt-sub">Top Laner · Team Alpha</div>
+      </div>
+      <div class="info-block">
+        <div class="rank-label">Rank</div>
+        <div class="rank-value" id="lt-rank">Diamond I</div>
+      </div>
+      <div class="team-block">
+        <div class="team-label">Team</div>
+        <div class="team-value" id="lt-team">Team Alpha</div>
+      </div>
+    </div>
+  </div>
+  <!-- Caster lower third -->
+  <div class="lower-third caster" id="lt-caster" style="display:none">
+    <div class="accent-bar"></div>
+    <div class="panel">
+      <div class="role-block"><div class="role-icon">🎙</div></div>
+      <div class="text-block">
+        <div class="player-name" id="lt-caster-name">CasterName</div>
+        <div class="player-sub" id="lt-caster-role">Play-by-Play</div>
+      </div>
+      <div class="team-block">
+        <div class="team-label">CEA</div>
+        <div class="team-value">Broadcast Team</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SCENE: BREAK ──────────────────────────────── -->
+<div class="scene" id="s-break">
+  <div class="hex-grid"></div>
+  <div class="vignette"></div>
+  <div class="ambient"></div>
+  <div class="bar-top"></div>
+  <div class="bar-bottom"></div>
+  <div class="corner c-tl"><svg width="100" height="100" viewBox="0 0 100 100" fill="none"><path d="M4 96 L4 4 L96 4" stroke="#C8AA6E" stroke-width="1.5"/><path d="M4 4 L28 4 M4 4 L4 28" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-tr"><svg width="100" height="100" viewBox="0 0 100 100" fill="none"><path d="M4 96 L4 4 L96 4" stroke="#C8AA6E" stroke-width="1.5"/><path d="M4 4 L28 4 M4 4 L4 28" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-bl"><svg width="100" height="100" viewBox="0 0 100 100" fill="none"><path d="M4 96 L4 4 L96 4" stroke="#C8AA6E" stroke-width="1.5"/><path d="M4 4 L28 4 M4 4 L4 28" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-br"><svg width="100" height="100" viewBox="0 0 100 100" fill="none"><path d="M4 96 L4 4 L96 4" stroke="#C8AA6E" stroke-width="1.5"/><path d="M4 4 L28 4 M4 4 L4 28" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="side-panel left">
+    <div class="score-label">Blue Side</div>
+    <div class="score-divider"></div>
+    <div class="score-team-name" id="brk-team1">Team Alpha</div>
+    <div class="score-value" id="brk-score1">1</div>
+  </div>
+  <div class="side-panel right">
+    <div class="score-label">Red Side</div>
+    <div class="score-divider"></div>
+    <div class="score-team-name" id="brk-team2">Team Bravo</div>
+    <div class="score-value" id="brk-score2">0</div>
+  </div>
+  <div class="center">
+    <div class="brb-label">Intermission</div>
+    <div class="brb-title">We'll Be<br>Right Back</div>
+    <div class="divider"><div class="div-line"></div><div class="div-hex"></div><div class="div-line"></div></div>
+    <div class="brb-sub" id="brk-sub">Game 2 Starting Shortly</div>
+    <div class="countdown-wrap" id="brk-countdown" style="display:none">
+      <div class="countdown-label">Returning In</div>
+      <div class="countdown-val" id="brk-countdown-val">5:00</div>
+    </div>
+  </div>
+  <div class="bottom-status">
+    <span class="status-item" id="brk-event">Spring Season 2025</span>
+    <div class="status-dot"></div>
+    <span class="status-item" id="brk-round">Quarterfinals</span>
+    <div class="status-dot"></div>
+    <span class="status-item">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: MATCH RESULT ───────────────────────── -->
+<div class="scene" id="s-match-result">
+  <div class="bg-base"></div>
+  <div class="bg-stripes"></div>
+  <div class="light-ray"></div>
+  <div class="corner c-tl"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M3 77 L3 3 L77 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3 L22 3 M3 3 L3 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-tr"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M3 77 L3 3 L77 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3 L22 3 M3 3 L3 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-bl"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M3 77 L3 3 L77 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3 L22 3 M3 3 L3 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="corner c-br"><svg width="80" height="80" viewBox="0 0 80 80" fill="none"><path d="M3 77 L3 3 L77 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3 L22 3 M3 3 L3 22" stroke="#C89B3C" stroke-width="3"/></svg></div>
+  <div class="top-header">
+    <span class="header-tag" id="mr-event">Spring Season 2025</span>
+    <div class="header-sep"></div>
+    <span class="header-tag" id="mr-round">Quarterfinals</span>
+    <div class="header-sep"></div>
+    <span class="header-tag" id="mr-format">Best of 3</span>
+  </div>
+  <div class="winner-banner">
+    <div class="result-label">Match Complete · Winner</div>
+    <div class="winner-name" id="mr-winner">Team Alpha</div>
+    <div class="wins-text" id="mr-winstext">Advances to Semifinals</div>
+    <div class="divider"><div class="div-line"></div><div class="div-gem"></div><div class="div-line"></div></div>
+  </div>
+  <div class="scoreboard">
+    <div class="score-side winner">
+      <div class="winner-badge"><span class="winner-badge-text">Winner</span></div>
+      <div class="score-side-label" id="mr-winner-side">Blue Side</div>
+      <div class="score-team" id="mr-winner-team">Team Alpha</div>
+      <div class="score-num" id="mr-winner-score">2</div>
+      <div class="score-wins-label">Wins</div>
+    </div>
+    <div class="score-mid"><div class="score-colon">–</div></div>
+    <div class="score-side loser">
+      <div class="score-side-label" id="mr-loser-side">Red Side</div>
+      <div class="score-team" id="mr-loser-team">Team Bravo</div>
+      <div class="score-num" id="mr-loser-score">1</div>
+      <div class="score-wins-label">Wins</div>
+    </div>
+  </div>
+  <div class="bottom-bar">
+    <span class="bottom-item">Corporate Esports Association</span>
+    <div class="bottom-sep"></div>
+    <span class="bottom-item" id="mr-bottom-event">Spring Season 2025</span>
+    <div class="bottom-sep"></div>
+    <span class="bottom-item">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: PLAYER STATS ─────────────────────────── -->
+<div class="scene" id="s-player-stats">
+  <div class="ps-bg-hex"></div>
+  <div class="ps-bg-grad"></div>
+  <div class="ps-top">
+    <span class="ps-team" id="ps-team">Team Alpha</span>
+    <div class="ps-sep"></div>
+    <span class="ps-lbl">Player Statistics</span>
+    <div class="ps-sep"></div>
+    <span class="ps-lbl" id="ps-event">Spring Season 2025</span>
+  </div>
+  <div class="ps-rows">
+    <!-- TOP -->
+    <div class="ps-row ps-row-top">
+      <div class="ps-accent"></div>
+      <div class="ps-role-blk"><img class="ps-role-icon" src="icons/Position_Challenger-Top.png" alt="Top"><div class="ps-role-lbl">Top</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-player-blk"><div class="ps-pname" id="ps-top-name">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rank-blk"><div class="ps-slbl">Rank</div><div class="ps-rankval" id="ps-top-rank">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Game W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-top-game-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-top-game-losses">0L</span></div><div class="ps-recpct" id="ps-top-game-wr">— Win Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Match W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-top-match-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-top-match-losses">0L</span></div><div class="ps-recpct" id="ps-top-match-wr">— Match Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-kda-blk"><div class="ps-slbl">Avg K / D / A</div><div class="ps-kda-row"><div class="ps-kda-cell"><span class="ps-kdanum ps-k" id="ps-top-avg-k">—</span><span class="ps-kdalbl">Kills</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-d" id="ps-top-avg-d">—</span><span class="ps-kdalbl">Deaths</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-a" id="ps-top-avg-a">—</span><span class="ps-kdalbl">Assists</span></div></div><div class="ps-kda-ratio" id="ps-top-kda"><em>—</em> KDA</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rate-blk"><div class="ps-rate-item"><div class="ps-slbl">CS / min</div><div class="ps-rateval" id="ps-top-cs-min">—</div></div><div class="ps-rate-item"><div class="ps-slbl">Gold / min</div><div class="ps-rateval" id="ps-top-gold-min">—</div></div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-champ-blk"><div class="ps-slbl">Fav Champion</div><div class="ps-champname" id="ps-top-fav-champ">—</div><div class="ps-champstats" id="ps-top-champ-stats">—</div></div>
+    </div>
+    <!-- JUNGLE -->
+    <div class="ps-row ps-row-jg">
+      <div class="ps-accent"></div>
+      <div class="ps-role-blk"><img class="ps-role-icon" src="icons/Position_Challenger-Jungle.png" alt="Jungle"><div class="ps-role-lbl">Jungle</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-player-blk"><div class="ps-pname" id="ps-jg-name">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rank-blk"><div class="ps-slbl">Rank</div><div class="ps-rankval" id="ps-jg-rank">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Game W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-jg-game-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-jg-game-losses">0L</span></div><div class="ps-recpct" id="ps-jg-game-wr">— Win Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Match W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-jg-match-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-jg-match-losses">0L</span></div><div class="ps-recpct" id="ps-jg-match-wr">— Match Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-kda-blk"><div class="ps-slbl">Avg K / D / A</div><div class="ps-kda-row"><div class="ps-kda-cell"><span class="ps-kdanum ps-k" id="ps-jg-avg-k">—</span><span class="ps-kdalbl">Kills</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-d" id="ps-jg-avg-d">—</span><span class="ps-kdalbl">Deaths</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-a" id="ps-jg-avg-a">—</span><span class="ps-kdalbl">Assists</span></div></div><div class="ps-kda-ratio" id="ps-jg-kda"><em>—</em> KDA</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rate-blk"><div class="ps-rate-item"><div class="ps-slbl">CS / min</div><div class="ps-rateval" id="ps-jg-cs-min">—</div></div><div class="ps-rate-item"><div class="ps-slbl">Gold / min</div><div class="ps-rateval" id="ps-jg-gold-min">—</div></div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-champ-blk"><div class="ps-slbl">Fav Champion</div><div class="ps-champname" id="ps-jg-fav-champ">—</div><div class="ps-champstats" id="ps-jg-champ-stats">—</div></div>
+    </div>
+    <!-- MID -->
+    <div class="ps-row ps-row-mid">
+      <div class="ps-accent"></div>
+      <div class="ps-role-blk"><img class="ps-role-icon" src="icons/Position_Challenger-Mid.png" alt="Mid"><div class="ps-role-lbl">Mid</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-player-blk"><div class="ps-pname" id="ps-mid-name">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rank-blk"><div class="ps-slbl">Rank</div><div class="ps-rankval" id="ps-mid-rank">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Game W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-mid-game-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-mid-game-losses">0L</span></div><div class="ps-recpct" id="ps-mid-game-wr">— Win Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Match W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-mid-match-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-mid-match-losses">0L</span></div><div class="ps-recpct" id="ps-mid-match-wr">— Match Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-kda-blk"><div class="ps-slbl">Avg K / D / A</div><div class="ps-kda-row"><div class="ps-kda-cell"><span class="ps-kdanum ps-k" id="ps-mid-avg-k">—</span><span class="ps-kdalbl">Kills</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-d" id="ps-mid-avg-d">—</span><span class="ps-kdalbl">Deaths</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-a" id="ps-mid-avg-a">—</span><span class="ps-kdalbl">Assists</span></div></div><div class="ps-kda-ratio" id="ps-mid-kda"><em>—</em> KDA</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rate-blk"><div class="ps-rate-item"><div class="ps-slbl">CS / min</div><div class="ps-rateval" id="ps-mid-cs-min">—</div></div><div class="ps-rate-item"><div class="ps-slbl">Gold / min</div><div class="ps-rateval" id="ps-mid-gold-min">—</div></div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-champ-blk"><div class="ps-slbl">Fav Champion</div><div class="ps-champname" id="ps-mid-fav-champ">—</div><div class="ps-champstats" id="ps-mid-champ-stats">—</div></div>
+    </div>
+    <!-- ADC -->
+    <div class="ps-row ps-row-adc">
+      <div class="ps-accent"></div>
+      <div class="ps-role-blk"><img class="ps-role-icon" src="icons/Position_Challenger-Bot.png" alt="ADC"><div class="ps-role-lbl">ADC</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-player-blk"><div class="ps-pname" id="ps-adc-name">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rank-blk"><div class="ps-slbl">Rank</div><div class="ps-rankval" id="ps-adc-rank">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Game W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-adc-game-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-adc-game-losses">0L</span></div><div class="ps-recpct" id="ps-adc-game-wr">— Win Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Match W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-adc-match-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-adc-match-losses">0L</span></div><div class="ps-recpct" id="ps-adc-match-wr">— Match Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-kda-blk"><div class="ps-slbl">Avg K / D / A</div><div class="ps-kda-row"><div class="ps-kda-cell"><span class="ps-kdanum ps-k" id="ps-adc-avg-k">—</span><span class="ps-kdalbl">Kills</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-d" id="ps-adc-avg-d">—</span><span class="ps-kdalbl">Deaths</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-a" id="ps-adc-avg-a">—</span><span class="ps-kdalbl">Assists</span></div></div><div class="ps-kda-ratio" id="ps-adc-kda"><em>—</em> KDA</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rate-blk"><div class="ps-rate-item"><div class="ps-slbl">CS / min</div><div class="ps-rateval" id="ps-adc-cs-min">—</div></div><div class="ps-rate-item"><div class="ps-slbl">Gold / min</div><div class="ps-rateval" id="ps-adc-gold-min">—</div></div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-champ-blk"><div class="ps-slbl">Fav Champion</div><div class="ps-champname" id="ps-adc-fav-champ">—</div><div class="ps-champstats" id="ps-adc-champ-stats">—</div></div>
+    </div>
+    <!-- SUPPORT -->
+    <div class="ps-row ps-row-sup">
+      <div class="ps-accent"></div>
+      <div class="ps-role-blk"><img class="ps-role-icon" src="icons/Position_Challenger-Support.png" alt="Support"><div class="ps-role-lbl">Support</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-player-blk"><div class="ps-pname" id="ps-sup-name">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rank-blk"><div class="ps-slbl">Rank</div><div class="ps-rankval" id="ps-sup-rank">—</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Game W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-sup-game-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-sup-game-losses">0L</span></div><div class="ps-recpct" id="ps-sup-game-wr">— Win Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-wr-blk"><div class="ps-slbl">Match W/L</div><div class="ps-rec-row"><span class="ps-recw" id="ps-sup-match-wins">0W</span><span class="ps-recd">–</span><span class="ps-recl" id="ps-sup-match-losses">0L</span></div><div class="ps-recpct" id="ps-sup-match-wr">— Match Rate</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-kda-blk"><div class="ps-slbl">Avg K / D / A</div><div class="ps-kda-row"><div class="ps-kda-cell"><span class="ps-kdanum ps-k" id="ps-sup-avg-k">—</span><span class="ps-kdalbl">Kills</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-d" id="ps-sup-avg-d">—</span><span class="ps-kdalbl">Deaths</span></div><span class="ps-kda-sep">/</span><div class="ps-kda-cell"><span class="ps-kdanum ps-a" id="ps-sup-avg-a">—</span><span class="ps-kdalbl">Assists</span></div></div><div class="ps-kda-ratio" id="ps-sup-kda"><em>—</em> KDA</div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-rate-blk"><div class="ps-rate-item"><div class="ps-slbl">CS / min</div><div class="ps-rateval" id="ps-sup-cs-min">—</div></div><div class="ps-rate-item"><div class="ps-slbl">Gold / min</div><div class="ps-rateval" id="ps-sup-gold-min">—</div></div></div>
+      <div class="ps-sep-v"></div>
+      <div class="ps-champ-blk"><div class="ps-slbl">Fav Champion</div><div class="ps-champname" id="ps-sup-fav-champ">—</div><div class="ps-champstats" id="ps-sup-champ-stats">—</div></div>
+    </div>
+  </div>
+  <div class="ps-bot">
+    <span class="ps-bot-item">Corporate Esports Association</span>
+    <div class="ps-bot-sep"></div>
+    <span class="ps-bot-item">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: MATCHUP STATS ────────────────────────── -->
+<div class="scene" id="s-matchup-stats">
+  <div class="ms-bg-hex"></div>
+  <div class="ms-bg-grad"></div>
+  <div class="ms-top">
+    <span class="ms-t1" id="ms-team1">Team Alpha</span>
+    <span class="ms-vs">VS</span>
+    <span class="ms-t2" id="ms-team2">Team Bravo</span>
+    <div class="ms-sep"></div>
+    <span class="ms-ev" id="ms-event">Spring Season 2025</span>
+  </div>
+  <div class="ms-rows">
+    <!-- TOP -->
+    <div class="ms-row">
+      <div class="ms-b-acc"></div>
+      <div class="ms-b-player"><div class="ms-bname" id="ms-top-b-name">—</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-top-b-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-top-b-game-losses">0L</span></div><div class="ms-recpct" id="ms-top-b-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-top-b-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-top-b-match-losses">0L</span></div><div class="ms-recpct" id="ms-top-b-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-top-b-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-top-b-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-top-b-avg-a">—</span></div><div class="ms-kdaratio" id="ms-top-b-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-top-b-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-top-b-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-vs-blk"><img class="ms-vs-icon" src="icons/Position_Challenger-Top.png" alt="Top"><div class="ms-vs-txt">VS</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-top-r-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-top-r-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-top-r-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-top-r-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-top-r-avg-a">—</span></div><div class="ms-kdaratio" id="ms-top-r-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-top-r-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-top-r-game-losses">0L</span></div><div class="ms-recpct" id="ms-top-r-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-top-r-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-top-r-match-losses">0L</span></div><div class="ms-recpct" id="ms-top-r-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-r-player"><div class="ms-rname" id="ms-top-r-name">—</div></div>
+      <div class="ms-r-acc"></div>
+    </div>
+    <!-- JUNGLE -->
+    <div class="ms-row">
+      <div class="ms-b-acc"></div>
+      <div class="ms-b-player"><div class="ms-bname" id="ms-jg-b-name">—</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-jg-b-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-jg-b-game-losses">0L</span></div><div class="ms-recpct" id="ms-jg-b-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-jg-b-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-jg-b-match-losses">0L</span></div><div class="ms-recpct" id="ms-jg-b-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-jg-b-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-jg-b-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-jg-b-avg-a">—</span></div><div class="ms-kdaratio" id="ms-jg-b-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-jg-b-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-jg-b-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-vs-blk"><img class="ms-vs-icon" src="icons/Position_Challenger-Jungle.png" alt="Jungle"><div class="ms-vs-txt">VS</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-jg-r-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-jg-r-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-jg-r-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-jg-r-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-jg-r-avg-a">—</span></div><div class="ms-kdaratio" id="ms-jg-r-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-jg-r-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-jg-r-game-losses">0L</span></div><div class="ms-recpct" id="ms-jg-r-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-jg-r-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-jg-r-match-losses">0L</span></div><div class="ms-recpct" id="ms-jg-r-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-r-player"><div class="ms-rname" id="ms-jg-r-name">—</div></div>
+      <div class="ms-r-acc"></div>
+    </div>
+    <!-- MID -->
+    <div class="ms-row">
+      <div class="ms-b-acc"></div>
+      <div class="ms-b-player"><div class="ms-bname" id="ms-mid-b-name">—</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-mid-b-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-mid-b-game-losses">0L</span></div><div class="ms-recpct" id="ms-mid-b-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-mid-b-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-mid-b-match-losses">0L</span></div><div class="ms-recpct" id="ms-mid-b-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-mid-b-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-mid-b-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-mid-b-avg-a">—</span></div><div class="ms-kdaratio" id="ms-mid-b-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-mid-b-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-mid-b-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-vs-blk"><img class="ms-vs-icon" src="icons/Position_Challenger-Mid.png" alt="Mid"><div class="ms-vs-txt">VS</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-mid-r-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-mid-r-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-mid-r-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-mid-r-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-mid-r-avg-a">—</span></div><div class="ms-kdaratio" id="ms-mid-r-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-mid-r-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-mid-r-game-losses">0L</span></div><div class="ms-recpct" id="ms-mid-r-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-mid-r-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-mid-r-match-losses">0L</span></div><div class="ms-recpct" id="ms-mid-r-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-r-player"><div class="ms-rname" id="ms-mid-r-name">—</div></div>
+      <div class="ms-r-acc"></div>
+    </div>
+    <!-- ADC -->
+    <div class="ms-row">
+      <div class="ms-b-acc"></div>
+      <div class="ms-b-player"><div class="ms-bname" id="ms-adc-b-name">—</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-adc-b-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-adc-b-game-losses">0L</span></div><div class="ms-recpct" id="ms-adc-b-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-adc-b-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-adc-b-match-losses">0L</span></div><div class="ms-recpct" id="ms-adc-b-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-adc-b-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-adc-b-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-adc-b-avg-a">—</span></div><div class="ms-kdaratio" id="ms-adc-b-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-adc-b-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-adc-b-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-vs-blk"><img class="ms-vs-icon" src="icons/Position_Challenger-Bot.png" alt="ADC"><div class="ms-vs-txt">VS</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-adc-r-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-adc-r-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-adc-r-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-adc-r-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-adc-r-avg-a">—</span></div><div class="ms-kdaratio" id="ms-adc-r-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-adc-r-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-adc-r-game-losses">0L</span></div><div class="ms-recpct" id="ms-adc-r-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-adc-r-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-adc-r-match-losses">0L</span></div><div class="ms-recpct" id="ms-adc-r-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-r-player"><div class="ms-rname" id="ms-adc-r-name">—</div></div>
+      <div class="ms-r-acc"></div>
+    </div>
+    <!-- SUPPORT -->
+    <div class="ms-row">
+      <div class="ms-b-acc"></div>
+      <div class="ms-b-player"><div class="ms-bname" id="ms-sup-b-name">—</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-sup-b-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-sup-b-game-losses">0L</span></div><div class="ms-recpct" id="ms-sup-b-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-sup-b-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-sup-b-match-losses">0L</span></div><div class="ms-recpct" id="ms-sup-b-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-sup-b-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-sup-b-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-sup-b-avg-a">—</span></div><div class="ms-kdaratio" id="ms-sup-b-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-sup-b-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-sup-b-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-vs-blk"><img class="ms-vs-icon" src="icons/Position_Challenger-Support.png" alt="Support"><div class="ms-vs-txt">VS</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-rate-blk"><div class="ms-rate-item"><div class="ms-slbl">CS/min</div><div class="ms-rateval" id="ms-sup-r-cs-min">—</div></div><div class="ms-rate-item"><div class="ms-slbl">Gold/min</div><div class="ms-rateval" id="ms-sup-r-gold-min">—</div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-kda-blk"><div class="ms-slbl">Avg K / D / A</div><div class="ms-kda-row"><span class="ms-knum ms-kc" id="ms-sup-r-avg-k">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-dc" id="ms-sup-r-avg-d">—</span><span class="ms-ksep">/</span><span class="ms-knum ms-ac" id="ms-sup-r-avg-a">—</span></div><div class="ms-kdaratio" id="ms-sup-r-kda"><em>—</em> KDA</div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-wr-blk"><div class="ms-slbl">Game / Match WR</div><div class="ms-wr-sub"><div class="ms-wr-row"><div class="ms-wr-sub-lbl">game</div><div class="ms-rec-row"><span class="ms-rw" id="ms-sup-r-game-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-sup-r-game-losses">0L</span></div><div class="ms-recpct" id="ms-sup-r-game-wr">—</div></div><div class="ms-wr-row"><div class="ms-wr-sub-lbl">match</div><div class="ms-rec-row"><span class="ms-rw" id="ms-sup-r-match-wins">0W</span><span class="ms-rs">–</span><span class="ms-rl" id="ms-sup-r-match-losses">0L</span></div><div class="ms-recpct" id="ms-sup-r-match-wr">—</div></div></div></div>
+      <div class="ms-sep-v"></div>
+      <div class="ms-r-player"><div class="ms-rname" id="ms-sup-r-name">—</div></div>
+      <div class="ms-r-acc"></div>
+    </div>
+  </div>
+  <div class="ms-bot">
+    <span class="ms-bot-item">Corporate Esports Association</span>
+    <div class="ms-bot-sep"></div>
+    <span class="ms-bot-item">League of Legends</span>
+  </div>
+</div>
+
+<!-- ─── SCENE: PLAYER SPOTLIGHT ─────────────────────── -->
+<div class="scene" id="s-player-spotlight">
+  <div class="sp-bg-hex"></div>
+  <div class="sp-bg-glow"></div>
+  <div class="sp-bg-grad"></div>
+  <div class="sp-scan"></div>
+  <div class="sp-top">
+    <span class="sp-top-lbl">Player Spotlight</span>
+    <div class="sp-top-sep"></div>
+    <span class="sp-top-lbl" id="sp-event">Spring Season 2025</span>
+  </div>
+  <div class="sp-content">
+    <div class="sp-card">
+      <div class="sp-card-top">
+        <div class="sp-role-badge">
+          <img class="sp-role-icon" id="sp-role-icon" src="icons/Position_Challenger-Top.png" alt="role">
+          <span class="sp-role-lbl" id="sp-role-lbl" style="color:#C8AA6E">Top</span>
+        </div>
+        <div class="sp-div-v"></div>
+        <div class="sp-pinfo">
+          <div class="sp-pname" id="sp-name">SummonerName</div>
+          <div class="sp-pteam" id="sp-team">Team Alpha</div>
+        </div>
+        <div class="sp-rinfo">
+          <div class="sp-rank-lbl">Rank</div>
+          <div class="sp-rank-val" id="sp-rank">—</div>
+        </div>
+      </div>
+      <div class="sp-stats">
+        <!-- Win Rates -->
+        <div class="sp-ss">
+          <div class="sp-ss-lbl">Win Rate</div>
+          <div class="sp-wr-pair">
+            <div class="sp-wr-group">
+              <div class="sp-wr-sub-lbl">Game</div>
+              <div class="sp-rec-big"><span class="sp-rw" id="sp-game-wins">0W</span><span class="sp-rd">–</span><span class="sp-rl" id="sp-game-losses">0L</span></div>
+              <div class="sp-recpct" id="sp-game-wr">— Win Rate</div>
+            </div>
+            <div class="sp-wr-group">
+              <div class="sp-wr-sub-lbl">Match</div>
+              <div class="sp-rec-big"><span class="sp-rw" id="sp-match-wins">0W</span><span class="sp-rd">–</span><span class="sp-rl" id="sp-match-losses">0L</span></div>
+              <div class="sp-recpct" id="sp-match-wr">— Match Rate</div>
+            </div>
+          </div>
+        </div>
+        <!-- Avg K/D/A -->
+        <div class="sp-ss">
+          <div class="sp-ss-lbl">Avg K / D / A</div>
+          <div class="sp-kda-trio">
+            <div class="sp-kda-cell"><span class="sp-knum sp-kc" id="sp-avg-k">—</span><span class="sp-klbl">Kills</span></div>
+            <span class="sp-ksep">/</span>
+            <div class="sp-kda-cell"><span class="sp-knum sp-dc" id="sp-avg-d">—</span><span class="sp-klbl">Deaths</span></div>
+            <span class="sp-ksep">/</span>
+            <div class="sp-kda-cell"><span class="sp-knum sp-ac" id="sp-avg-a">—</span><span class="sp-klbl">Assists</span></div>
+          </div>
+        </div>
+        <!-- KDA Ratio + CS/Gold -->
+        <div class="sp-ss">
+          <div class="sp-kda-rate">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+              <div class="sp-ss-lbl">KDA Ratio</div>
+              <div class="sp-kda-big" id="sp-kda">—</div>
+              <div class="sp-kda-lbl">KDA</div>
+            </div>
+            <div class="sp-rate-pair">
+              <div class="sp-rate-item">
+                <div class="sp-ss-lbl">CS / min</div>
+                <div class="sp-rate-val" id="sp-cs-min">—</div>
+              </div>
+              <div class="sp-rate-item">
+                <div class="sp-ss-lbl">Gold / min</div>
+                <div class="sp-rate-val" id="sp-gold-min">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Top 5 Champions -->
+      <div class="sp-champs">
+        <div class="sp-champs-lbl">Top Champions</div>
+        <div class="sp-champs-grid">
+          <div class="sp-champ-card" id="sp-champ-1"><div class="sp-champ-name" id="sp-champ-1-name">—</div><div class="sp-champ-wl"><span class="sp-champ-w" id="sp-champ-1-wins">0W</span><span class="sp-champ-s">–</span><span class="sp-champ-l" id="sp-champ-1-losses">0L</span></div><div class="sp-champ-kda" id="sp-champ-1-kda">— KDA</div></div>
+          <div class="sp-champ-card" id="sp-champ-2"><div class="sp-champ-name" id="sp-champ-2-name">—</div><div class="sp-champ-wl"><span class="sp-champ-w" id="sp-champ-2-wins">0W</span><span class="sp-champ-s">–</span><span class="sp-champ-l" id="sp-champ-2-losses">0L</span></div><div class="sp-champ-kda" id="sp-champ-2-kda">— KDA</div></div>
+          <div class="sp-champ-card" id="sp-champ-3"><div class="sp-champ-name" id="sp-champ-3-name">—</div><div class="sp-champ-wl"><span class="sp-champ-w" id="sp-champ-3-wins">0W</span><span class="sp-champ-s">–</span><span class="sp-champ-l" id="sp-champ-3-losses">0L</span></div><div class="sp-champ-kda" id="sp-champ-3-kda">— KDA</div></div>
+          <div class="sp-champ-card" id="sp-champ-4"><div class="sp-champ-name" id="sp-champ-4-name">—</div><div class="sp-champ-wl"><span class="sp-champ-w" id="sp-champ-4-wins">0W</span><span class="sp-champ-s">–</span><span class="sp-champ-l" id="sp-champ-4-losses">0L</span></div><div class="sp-champ-kda" id="sp-champ-4-kda">— KDA</div></div>
+          <div class="sp-champ-card" id="sp-champ-5"><div class="sp-champ-name" id="sp-champ-5-name">—</div><div class="sp-champ-wl"><span class="sp-champ-w" id="sp-champ-5-wins">0W</span><span class="sp-champ-s">–</span><span class="sp-champ-l" id="sp-champ-5-losses">0L</span></div><div class="sp-champ-kda" id="sp-champ-5-kda">— KDA</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sp-bot">
+    <span class="sp-bot-item">Corporate Esports Association</span>
+    <div class="sp-bot-sep"></div>
+    <span class="sp-bot-item">League of Legends</span>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  OVERLAY CONTROLLER
+// ════════════════════════════════════════════════════════
+const ROLE_ICONS = { Top:"⚔", Jungle:"🌿", Mid:"✦", ADC:"🏹", Support:"🛡" };
+let countdownTimer = null;
+
+function applyParams(scene, params) {
+  const p = params || {};
+
+  if (scene === "starting-soon") {
+    setText("ss-event",        p.event  || "Spring Season 2025");
+    setText("ss-banner-event", p.event  || "Spring Season 2025");
+  }
+
+  if (scene === "match-intro") {
+    setText("mi-team1",   p.team1    || "Team Alpha");
+    setText("mi-team2",   p.team2    || "Team Bravo");
+    setText("mi-record1", p.record1  || "");
+    setText("mi-record2", p.record2  || "");
+    setText("mi-event",   p.event    || "Spring Season 2025");
+    setText("mi-round",   p.round    || "Quarterfinals");
+    setText("mi-format",  p.format   || "Best of 3");
+    setText("mi-matchnum",p.matchNum || "");
+  }
+
+  if (scene === "lower-third") {
+    const isCaster = p.mode === "caster";
+    document.getElementById("lt-player").style.display = isCaster ? "none" : "flex";
+    document.getElementById("lt-caster").style.display = isCaster ? "flex" : "none";
+    if (isCaster) {
+      setText("lt-caster-name", p.casterName || "CasterName");
+      setText("lt-caster-role", p.casterRole || "Play-by-Play");
+    } else {
+      const role = p.role || "Top";
+      setText("lt-role-icon", ROLE_ICONS[role] || "⚔");
+      setText("lt-name",      p.playerName || "SummonerName");
+      setText("lt-sub",       `${role} Laner · ${p.team || "Team Alpha"}`);
+      setText("lt-rank",      p.rank || "");
+      setText("lt-team",      p.team || "Team Alpha");
+    }
+  }
+
+  if (scene === "break") {
+    setText("brk-team1", p.team1 || "Team Alpha");
+    setText("brk-team2", p.team2 || "Team Bravo");
+    setText("brk-score1",p.score1 || "0");
+    setText("brk-score2",p.score2 || "0");
+    setText("brk-sub",   p.sub   || "Game 2 Starting Shortly");
+    setText("brk-event", p.event || "Spring Season 2025");
+    setText("brk-round", p.round || "Quarterfinals");
+    // Countdown
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    const secs = parseInt(p.countdown || "0");
+    const wrap = document.getElementById("brk-countdown");
+    if (secs > 0) {
+      wrap.style.display = "flex";
+      let remaining = secs;
+      const el = document.getElementById("brk-countdown-val");
+      const tick = () => {
+        const m = Math.floor(remaining / 60), s = remaining % 60;
+        el.textContent = `${m}:${s.toString().padStart(2,"0")}`;
+        if (remaining <= 0) { clearInterval(countdownTimer); countdownTimer = null; }
+        remaining--;
+      };
+      tick();
+      countdownTimer = setInterval(tick, 1000);
+    } else {
+      wrap.style.display = "none";
+    }
+  }
+
+  if (scene === "match-result") {
+    setText("mr-winner",       p.winner      || "Team Alpha");
+    setText("mr-winstext",     p.winsText    || "Advances to Semifinals");
+    setText("mr-winner-team",  p.winner      || "Team Alpha");
+    setText("mr-loser-team",   p.loser       || "Team Bravo");
+    setText("mr-winner-score", p.winnerScore || "2");
+    setText("mr-loser-score",  p.loserScore  || "1");
+    setText("mr-winner-side",  p.winnerSide  || "Blue Side");
+    setText("mr-loser-side",   p.loserSide   || "Red Side");
+    setText("mr-event",        p.event       || "Spring Season 2025");
+    setText("mr-round",        p.round       || "Quarterfinals");
+    setText("mr-format",       p.format      || "Best of 3");
+    setText("mr-bottom-event", p.event       || "Spring Season 2025");
+  }
+
+  if (scene === "player-stats") {
+    setText("ps-team",  p.teamName || "Team Alpha");
+    setText("ps-event", p.event    || "Spring Season 2025");
+    ["top","jg","mid","adc","sup"].forEach(k => {
+      setText("ps-"+k+"-name",         p[k+"_name"]          || "—");
+      setText("ps-"+k+"-rank",         p[k+"_rank"]          || "—");
+      setText("ps-"+k+"-game-wins",    (p[k+"_game_wins"]    || "0") + "W");
+      setText("ps-"+k+"-game-losses",  (p[k+"_game_losses"]  || "0") + "L");
+      setText("ps-"+k+"-game-wr",      (p[k+"_game_wr"]      || "—") + " Win Rate");
+      setText("ps-"+k+"-match-wins",   (p[k+"_match_wins"]   || "0") + "W");
+      setText("ps-"+k+"-match-losses", (p[k+"_match_losses"] || "0") + "L");
+      setText("ps-"+k+"-match-wr",     (p[k+"_match_wr"]     || "—") + " Match Rate");
+      setText("ps-"+k+"-avg-k",        p[k+"_avg_k"]         || "—");
+      setText("ps-"+k+"-avg-d",        p[k+"_avg_d"]         || "—");
+      setText("ps-"+k+"-avg-a",        p[k+"_avg_a"]         || "—");
+      const kdEl = document.getElementById("ps-"+k+"-kda");
+      if (kdEl) kdEl.innerHTML = "<em>" + (p[k+"_kda"] || "—") + "</em> KDA";
+      setText("ps-"+k+"-cs-min",       p[k+"_cs_min"]        || "—");
+      setText("ps-"+k+"-gold-min",     p[k+"_gold_min"]      || "—");
+      setText("ps-"+k+"-fav-champ",    p[k+"_fav_champ"]     || "—");
+      const cw = p[k+"_champ_wins"] || "0", cl = p[k+"_champ_losses"] || "0", ck = p[k+"_champ_kda"] || "—";
+      setText("ps-"+k+"-champ-stats",  cw + "W–" + cl + "L | " + ck + " KDA");
+    });
+  }
+
+  if (scene === "matchup-stats") {
+    setText("ms-team1", p.team1 || "Blue Side");
+    setText("ms-team2", p.team2 || "Red Side");
+    setText("ms-event", p.event || "Spring Season 2025");
+    ["top","jg","mid","adc","sup"].forEach(k => {
+      ["b","r"].forEach(side => {
+        const pfx = side + "_" + k;
+        const id  = "ms-" + k + "-" + side;
+        setText(id+"-name",          p[pfx+"_name"]          || "—");
+        setText(id+"-game-wins",     (p[pfx+"_game_wins"]    || "0") + "W");
+        setText(id+"-game-losses",   (p[pfx+"_game_losses"]  || "0") + "L");
+        setText(id+"-game-wr",       p[pfx+"_game_wr"]       || "—");
+        setText(id+"-match-wins",    (p[pfx+"_match_wins"]   || "0") + "W");
+        setText(id+"-match-losses",  (p[pfx+"_match_losses"] || "0") + "L");
+        setText(id+"-match-wr",      p[pfx+"_match_wr"]      || "—");
+        setText(id+"-avg-k",         p[pfx+"_avg_k"]         || "—");
+        setText(id+"-avg-d",         p[pfx+"_avg_d"]         || "—");
+        setText(id+"-avg-a",         p[pfx+"_avg_a"]         || "—");
+        const kdEl = document.getElementById(id+"-kda");
+        if (kdEl) kdEl.innerHTML = "<em>" + (p[pfx+"_kda"] || "—") + "</em> KDA";
+        setText(id+"-cs-min",        p[pfx+"_cs_min"]        || "—");
+        setText(id+"-gold-min",      p[pfx+"_gold_min"]      || "—");
+      });
+    });
+  }
+
+  if (scene === "player-spotlight") {
+    const SP_ROLE_ICONS  = {Top:"icons/Position_Challenger-Top.png",Jungle:"icons/Position_Challenger-Jungle.png",Mid:"icons/Position_Challenger-Mid.png",ADC:"icons/Position_Challenger-Bot.png",Support:"icons/Position_Challenger-Support.png"};
+    const SP_ROLE_COLORS = {Top:"#C8AA6E",Jungle:"#4FC65A",Mid:"#0BC4E3",ADC:"#E57373",Support:"#9C78E8"};
+    const role = p.role || "Mid";
+    setText("sp-event", p.event || "Spring Season 2025");
+    setText("sp-name",  p.name  || "Player");
+    setText("sp-team",  p.team  || "Team Alpha");
+    setText("sp-rank",  p.rank  || "—");
+    const ri = document.getElementById("sp-role-icon");
+    if (ri) ri.src = SP_ROLE_ICONS[role] || SP_ROLE_ICONS["Mid"];
+    const rl = document.getElementById("sp-role-lbl");
+    if (rl) { rl.textContent = role; rl.style.color = SP_ROLE_COLORS[role] || "#0BC4E3"; }
+    setText("sp-game-wins",    (p.game_wins    || "0") + "W");
+    setText("sp-game-losses",  (p.game_losses  || "0") + "L");
+    setText("sp-game-wr",      (p.game_wr      || "—") + " Win Rate");
+    setText("sp-match-wins",   (p.match_wins   || "0") + "W");
+    setText("sp-match-losses", (p.match_losses || "0") + "L");
+    setText("sp-match-wr",     (p.match_wr     || "—") + " Match Rate");
+    setText("sp-avg-k",   p.avg_k    || "—");
+    setText("sp-avg-d",   p.avg_d    || "—");
+    setText("sp-avg-a",   p.avg_a    || "—");
+    setText("sp-kda",     p.kda      || "—");
+    setText("sp-cs-min",  p.cs_min   || "—");
+    setText("sp-gold-min",p.gold_min || "—");
+    for (let i = 1; i <= 5; i++) {
+      const name = p["champ"+i+"_name"] || "";
+      const card = document.getElementById("sp-champ-"+i);
+      if (card) card.style.display = name ? "flex" : "none";
+      setText("sp-champ-"+i+"-name",   name || "—");
+      setText("sp-champ-"+i+"-wins",   (p["champ"+i+"_wins"]   || "0") + "W");
+      setText("sp-champ-"+i+"-losses", (p["champ"+i+"_losses"] || "0") + "L");
+      setText("sp-champ-"+i+"-kda",    (p["champ"+i+"_kda"]    || "—") + " KDA");
+    }
+  }
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+let currentScene = "idle";
+
+function switchScene(scene) {
+  if (scene === currentScene) return;
+  document.querySelectorAll(".scene").forEach(el => el.classList.remove("active"));
+  const target = document.getElementById("s-" + scene);
+  if (target) {
+    // Re-trigger CSS animations by cloning
+    const clone = target.cloneNode(true);
+    target.parentNode.replaceChild(clone, target);
+    clone.classList.add("active");
+  } else {
+    document.getElementById("s-idle").classList.add("active");
+  }
+  currentScene = scene;
+}
+
+// ── WebSocket connection ──
+const WS_URL = "ws://127.0.0.1:7233";
+let ws = null;
+let reconnectDelay = 1000;
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    reconnectDelay = 1000;
+  };
+
+  ws.onmessage = ({ data }) => {
+    try {
+      const { scene, params } = JSON.parse(data);
+      if (scene) {
+        applyParams(scene, params);
+        switchScene(scene);
+      }
+    } catch (e) {
+      console.error("[Overlay] Bad message:", e);
+    }
+  };
+
+  ws.onclose = () => {
+    setTimeout(() => { reconnectDelay = Math.min(reconnectDelay * 2, 10000); connect(); }, reconnectDelay);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+connect();
+</script>
+</body>
+</html>

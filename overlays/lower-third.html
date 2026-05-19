@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>CEA LoL — Lower Third</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold-light:  #F0E6D3;
+    --gold-mid:    #C8AA6E;
+    --gold-dark:   #785A28;
+    --gold-bright: #C89B3C;
+    --blue-bright: #0BC4E3;
+    --blue-mid:    #0397AB;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    width:1920px; height:1080px; overflow:hidden;
+    background:transparent; font-family:'Inter',sans-serif;
+  }
+
+  /* ── LOWER THIRD ────────────────────────────────────── */
+  .lower-third {
+    position:absolute; bottom:60px; left:60px;
+    display:flex; align-items:stretch;
+    clip-path:inset(0 100% 0 0);
+    animation:wipeIn 0.65s cubic-bezier(0.77,0,0.18,1) 0.15s forwards;
+  }
+  @keyframes wipeIn { to { clip-path:inset(0 0% 0 0); } }
+
+  .lower-third.caster {
+    left:auto; right:60px;
+    clip-path:inset(0 0 0 100%);
+    animation:wipeInR 0.65s cubic-bezier(0.77,0,0.18,1) 0.15s forwards;
+  }
+  @keyframes wipeInR { to { clip-path:inset(0 0% 0 0%); } }
+
+  .lower-third.exit {
+    animation:wipeOut 0.45s cubic-bezier(0.77,0,0.18,1) forwards !important;
+  }
+  @keyframes wipeOut { to { clip-path:inset(0 100% 0 0); } }
+
+  /* Role-colored accent bar */
+  .accent-bar {
+    width:4px; flex-shrink:0;
+    background:var(--role-color, linear-gradient(180deg, var(--gold-bright), var(--gold-dark)));
+    box-shadow:var(--role-glow, 0 0 10px rgba(200,155,60,0.6));
+  }
+
+  /* Main panel */
+  .panel {
+    background:rgba(1,10,19,0.93);
+    border-top:1px solid rgba(200,170,110,0.2);
+    border-bottom:1px solid rgba(200,170,110,0.09);
+    border-right:1px solid rgba(200,170,110,0.11);
+    display:flex; align-items:stretch; position:relative; overflow:hidden;
+  }
+  .panel::before {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg, rgba(11,196,227,0.04) 0%, transparent 45%);
+    pointer-events:none;
+  }
+
+  /* Role icon */
+  .role-block {
+    padding:0 18px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(3,38,64,0.4);
+    border-right:1px solid rgba(200,170,110,0.09);
+    min-width:62px;
+  }
+  .role-icon { font-size:20px; line-height:1; }
+
+  /* Name + subtitle */
+  .text-block {
+    padding:14px 22px 12px 20px;
+    display:flex; flex-direction:column; gap:3px; min-width:250px;
+  }
+  .player-name {
+    font-family:'Cinzel',serif; font-size:23px; font-weight:700;
+    color:var(--gold-light); letter-spacing:0.06em; line-height:1.1;
+    white-space:nowrap; text-shadow:0 0 18px rgba(200,155,60,0.32);
+  }
+  .player-sub {
+    font-size:11px; font-weight:500; letter-spacing:0.22em;
+    color:var(--gold-mid); text-transform:uppercase; white-space:nowrap;
+  }
+
+  /* Info blocks */
+  .info-block, .team-block {
+    padding:0 20px;
+    display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+    gap:3px; border-left:1px solid rgba(200,170,110,0.08);
+  }
+  .team-block { padding-right:24px; }
+  .info-label {
+    font-size:10px; font-weight:600; letter-spacing:0.3em;
+    color:rgba(200,170,110,0.42); text-transform:uppercase;
+  }
+  .rank-value {
+    font-size:15px; font-weight:700; color:var(--blue-bright); letter-spacing:0.04em; white-space:nowrap;
+  }
+  .team-value {
+    font-family:'Cinzel',serif; font-size:15px; font-weight:700;
+    color:var(--gold-mid); letter-spacing:0.04em; white-space:nowrap;
+  }
+
+  /* Caster variant */
+  .lower-third.caster .accent-bar {
+    background:linear-gradient(180deg, var(--blue-bright), var(--blue-mid));
+    box-shadow:0 0 10px rgba(11,196,227,0.6);
+  }
+  .lower-third.caster .panel::before {
+    background:linear-gradient(270deg, rgba(200,155,60,0.04) 0%, transparent 45%);
+  }
+</style>
+</head>
+<body>
+
+<div class="lower-third" id="playerLT">
+  <div class="accent-bar" id="accentBar"></div>
+  <div class="panel">
+    <div class="role-block"><div class="role-icon" id="roleIcon">⚔</div></div>
+    <div class="text-block">
+      <div class="player-name" id="playerName">SummonerName</div>
+      <div class="player-sub" id="playerSub">Top Laner · Team Alpha</div>
+    </div>
+    <div class="info-block">
+      <div class="info-label">Rank</div>
+      <div class="rank-value" id="playerRank">Diamond I</div>
+    </div>
+    <div class="team-block">
+      <div class="info-label">Team</div>
+      <div class="team-value" id="playerTeam">Team Alpha</div>
+    </div>
+  </div>
+</div>
+
+<div class="lower-third caster" id="casterLT" style="display:none">
+  <div class="accent-bar"></div>
+  <div class="panel">
+    <div class="role-block"><div class="role-icon">🎙</div></div>
+    <div class="text-block">
+      <div class="player-name" id="casterName">CasterName</div>
+      <div class="player-sub" id="casterRole">Play-by-Play</div>
+    </div>
+    <div class="team-block">
+      <div class="info-label">CEA</div>
+      <div class="team-value">Broadcast Team</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const CONFIG = {
+    mode:"player", playerName:"SummonerName",
+    role:"Top", rank:"Diamond I", team:"Team Alpha",
+    casterName:"CasterName", casterRole:"Play-by-Play",
+  };
+
+  const ROLES = {
+    Top:     { icon:"⚔",  bg:"linear-gradient(180deg,#C89B3C,#785A28)", glow:"0 0 10px rgba(200,155,60,0.6)"  },
+    Jungle:  { icon:"🌿", bg:"linear-gradient(180deg,#4CAF50,#2E7D32)", glow:"0 0 10px rgba(76,175,80,0.6)"   },
+    Mid:     { icon:"✦",  bg:"linear-gradient(180deg,#AB47BC,#6A1B9A)", glow:"0 0 10px rgba(171,71,188,0.6)"  },
+    ADC:     { icon:"🏹", bg:"linear-gradient(180deg,#EF5350,#B71C1C)", glow:"0 0 10px rgba(239,83,80,0.6)"   },
+    Support: { icon:"🛡", bg:"linear-gradient(180deg,#0BC4E3,#0397AB)", glow:"0 0 10px rgba(11,196,227,0.6)"  },
+  };
+
+  const p = new URLSearchParams(location.search);
+  ["mode","playerName","role","rank","team","casterName","casterRole"].forEach(k => {
+    if (p.get(k)) CONFIG[k] = p.get(k);
+  });
+
+  if (CONFIG.mode === "caster") {
+    document.getElementById("playerLT").style.display = "none";
+    document.getElementById("casterLT").style.display = "flex";
+    document.getElementById("casterName").textContent = CONFIG.casterName;
+    document.getElementById("casterRole").textContent = CONFIG.casterRole;
+  } else {
+    const role = ROLES[CONFIG.role] || ROLES.Top;
+    const bar  = document.getElementById("accentBar");
+    bar.style.background  = role.bg;
+    bar.style.boxShadow   = role.glow;
+    document.getElementById("roleIcon").textContent   = role.icon;
+    document.getElementById("playerName").textContent = CONFIG.playerName;
+    document.getElementById("playerSub").textContent  = `${CONFIG.role} Laner · ${CONFIG.team}`;
+    document.getElementById("playerRank").textContent = CONFIG.rank;
+    document.getElementById("playerTeam").textContent = CONFIG.team;
+  }
+
+  const duration = parseInt(p.get("duration") || "0");
+  if (duration > 0) {
+    setTimeout(() => {
+      const lt = document.querySelector(".lower-third:not([style*='none'])");
+      if (lt) lt.classList.add("exit");
+    }, duration * 1000);
+  }
+</script>
+</body>
+</html>

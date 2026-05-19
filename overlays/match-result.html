@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>CEA LoL — Match Result</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold-light:  #F0E6D3;
+    --gold-mid:    #C8AA6E;
+    --gold-dark:   #785A28;
+    --gold-bright: #C89B3C;
+    --blue-bright: #0BC4E3;
+    --blue-mid:    #0397AB;
+    --bg:          #010A13;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    width:1920px; height:1080px; overflow:hidden;
+    background:var(--bg); font-family:'Inter',sans-serif;
+  }
+
+  /* ── BACKGROUND ─────────────────────────────────────── */
+  .bg-gradient {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 65% 50% at 50% 38%, rgba(3,38,64,0.6) 0%, transparent 70%),
+      radial-gradient(ellipse 110% 42% at 50% 0%,   rgba(1,10,19,0.9) 0%, transparent 60%),
+      radial-gradient(ellipse 110% 42% at 50% 100%, rgba(1,10,19,1)   0%, transparent 60%);
+  }
+  .bg-stripes {
+    position:absolute; inset:0;
+    background-image:repeating-linear-gradient(-60deg, transparent, transparent 60px, rgba(200,170,110,0.016) 60px, rgba(200,170,110,0.016) 61px);
+  }
+  /* radial gold burst behind winner name */
+  .winner-burst {
+    position:absolute; left:50%; top:34%;
+    transform:translate(-50%,-50%) scale(0);
+    width:780px; height:780px;
+    background:radial-gradient(ellipse, rgba(200,155,60,0.1) 0%, rgba(200,155,60,0.03) 35%, transparent 70%);
+    border-radius:50%; opacity:0;
+    animation:burstGrow 1.2s cubic-bezier(0,0,0.2,1) 0.8s forwards;
+  }
+  @keyframes burstGrow {
+    0%   { opacity:0; transform:translate(-50%,-50%) scale(0); }
+    25%  { opacity:1; }
+    100% { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  }
+
+  /* ── HEADER ─────────────────────────────────────────── */
+  .top-header {
+    position:absolute; top:0; left:0; right:0; height:56px;
+    background:rgba(1,10,19,0.95); border-bottom:1px solid rgba(200,170,110,0.18);
+    display:flex; align-items:center; justify-content:center; gap:22px;
+    clip-path:inset(0 0 100% 0);
+    animation:barDown 0.5s ease 0.1s forwards;
+  }
+  @keyframes barDown { to { clip-path:inset(0 0 0% 0); } }
+  .header-tag {
+    font-family:'Cinzel',serif; font-size:13px; font-weight:700;
+    letter-spacing:0.3em; color:var(--gold-mid); text-transform:uppercase;
+  }
+  .sep { width:4px; height:4px; background:var(--gold-bright); transform:rotate(45deg); }
+
+  /* ── WINNER SECTION ─────────────────────────────────── */
+  .winner-section {
+    position:absolute; top:56px; left:0; right:0;
+    display:flex; flex-direction:column; align-items:center;
+    padding-top:68px;
+  }
+
+  .result-label {
+    font-size:13px; font-weight:700; letter-spacing:0.55em;
+    color:var(--blue-bright); text-transform:uppercase;
+    opacity:0; animation:fadeUp 0.5s ease 0.5s forwards;
+  }
+
+  .winner-name {
+    font-family:'Cinzel',serif;
+    font-size:102px; font-weight:900; letter-spacing:0.08em;
+    text-transform:uppercase; text-align:center; line-height:1; margin-top:14px;
+    background:linear-gradient(90deg,
+      var(--gold-dark) 0%, var(--gold-mid) 22%, var(--gold-light) 38%,
+      #fff 50%, var(--gold-light) 62%, var(--gold-mid) 78%, var(--gold-dark) 100%);
+    background-size:300% auto;
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    clip-path:inset(0 100% 0 0);
+    animation:
+      wipeIn  0.9s cubic-bezier(0.77,0,0.18,1) 0.7s forwards,
+      shimmer 4.5s linear 2s infinite;
+  }
+  @keyframes wipeIn  { to { clip-path:inset(0 0% 0 0); } }
+  @keyframes shimmer { 0%{background-position:100% center;} 100%{background-position:-100% center;} }
+
+  .wins-text {
+    font-family:'Cinzel',serif; font-size:22px; font-weight:600;
+    letter-spacing:0.25em; color:var(--gold-mid); text-transform:uppercase;
+    margin-top:10px; opacity:0; animation:fadeUp 0.5s ease 1.35s forwards;
+  }
+
+  .divider {
+    display:flex; align-items:center; gap:16px;
+    margin:28px 0; width:640px;
+    opacity:0; animation:fadeIn 0.5s ease 1.45s forwards;
+  }
+  .div-line { flex:1; height:1px; background:linear-gradient(90deg, transparent, var(--gold-mid), transparent); }
+  .div-gem  { width:11px; height:11px; background:var(--gold-bright); transform:rotate(45deg); box-shadow:0 0 10px rgba(200,155,60,0.8); }
+
+  /* ── SCOREBOARD ─────────────────────────────────────── */
+  .scoreboard {
+    position:absolute; bottom:88px; left:50%;
+    transform:translateX(-50%);
+    display:flex; align-items:stretch;
+    opacity:0; animation:fadeUp 0.7s ease 1.65s forwards;
+  }
+
+  .score-side {
+    display:flex; flex-direction:column; align-items:center;
+    gap:8px; padding:28px 62px; position:relative;
+  }
+  .score-side.winner {
+    background:rgba(7,16,32,0.75);
+    border-top:2px solid var(--gold-bright);
+    box-shadow:inset 0 0 50px rgba(200,155,60,0.05);
+  }
+  .score-side.loser {
+    background:rgba(7,7,7,0.5);
+    border-top:1px solid rgba(70,70,70,0.22);
+  }
+
+  .ss-label {
+    font-size:11px; font-weight:700; letter-spacing:0.35em; text-transform:uppercase;
+  }
+  .score-side.winner .ss-label { color:var(--blue-bright); }
+  .score-side.loser  .ss-label { color:rgba(120,120,120,0.45); }
+
+  .ss-team {
+    font-family:'Cinzel',serif; font-size:26px; font-weight:700;
+    letter-spacing:0.08em; text-align:center; max-width:270px; text-transform:uppercase;
+  }
+  .score-side.winner .ss-team { color:var(--gold-light); }
+  .score-side.loser  .ss-team { color:rgba(170,170,170,0.28); }
+
+  .ss-num {
+    font-family:'Cinzel',serif; font-size:72px; font-weight:900; line-height:1;
+  }
+  .score-side.winner .ss-num { color:var(--gold-light); text-shadow:0 0 30px rgba(200,155,60,0.5); }
+  .score-side.loser  .ss-num { color:rgba(130,130,130,0.28); }
+
+  .ss-wins {
+    font-size:11px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase;
+  }
+  .score-side.winner .ss-wins { color:rgba(200,170,110,0.5); }
+  .score-side.loser  .ss-wins { color:rgba(80,80,80,0.45); }
+
+  .winner-badge {
+    position:absolute; top:-12px; left:50%; transform:translateX(-50%);
+    background:var(--gold-bright); padding:3px 18px;
+    clip-path:polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  }
+  .winner-badge-text {
+    font-size:10px; font-weight:700; letter-spacing:0.32em;
+    color:var(--bg); text-transform:uppercase;
+  }
+
+  .score-mid {
+    display:flex; align-items:center; justify-content:center; padding:0 26px;
+  }
+  .score-colon {
+    font-family:'Cinzel',serif; font-size:48px; font-weight:900;
+    color:rgba(200,170,110,0.22); line-height:1;
+  }
+
+  /* ── BOTTOM BAR ─────────────────────────────────────── */
+  .bottom-bar {
+    position:absolute; bottom:0; left:0; right:0; height:50px;
+    background:rgba(1,10,19,0.95); border-top:1px solid rgba(200,170,110,0.13);
+    display:flex; align-items:center; justify-content:center; gap:22px;
+    clip-path:inset(100% 0 0 0);
+    animation:barUp 0.5s ease 2.1s forwards;
+  }
+  @keyframes barUp { to { clip-path:inset(0% 0 0 0); } }
+  .bottom-item {
+    font-size:12px; font-weight:500; letter-spacing:0.2em;
+    color:rgba(200,170,110,0.48); text-transform:uppercase;
+  }
+  .bottom-sep { width:3px; height:3px; background:var(--gold-dark); transform:rotate(45deg); }
+
+  .corner { position:absolute; width:68px; height:68px; opacity:0.33; }
+  .corner svg { width:100%; height:100%; }
+  .corner-tl { top:65px; left:20px; }
+  .corner-tr { top:65px; right:20px; transform:scaleX(-1); }
+  .corner-bl { bottom:58px; left:20px; transform:scaleY(-1); }
+  .corner-br { bottom:58px; right:20px; transform:scale(-1); }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:translateY(0);} }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+</style>
+</head>
+<body>
+
+<div class="bg-gradient"></div>
+<div class="bg-stripes"></div>
+<div class="winner-burst"></div>
+
+<div class="corner corner-tl"><svg viewBox="0 0 68 68" fill="none"><path d="M3 65L3 3L65 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3L20 3M3 3L3 20" stroke="#C89B3C" stroke-width="2.5"/></svg></div>
+<div class="corner corner-tr"><svg viewBox="0 0 68 68" fill="none"><path d="M3 65L3 3L65 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3L20 3M3 3L3 20" stroke="#C89B3C" stroke-width="2.5"/></svg></div>
+<div class="corner corner-bl"><svg viewBox="0 0 68 68" fill="none"><path d="M3 65L3 3L65 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3L20 3M3 3L3 20" stroke="#C89B3C" stroke-width="2.5"/></svg></div>
+<div class="corner corner-br"><svg viewBox="0 0 68 68" fill="none"><path d="M3 65L3 3L65 3" stroke="#C8AA6E" stroke-width="1.5"/><path d="M3 3L20 3M3 3L3 20" stroke="#C89B3C" stroke-width="2.5"/></svg></div>
+
+<div class="top-header">
+  <span class="header-tag" id="headerEvent">Spring Season 2025</span>
+  <div class="sep"></div>
+  <span class="header-tag" id="headerRound">Quarterfinals</span>
+  <div class="sep"></div>
+  <span class="header-tag" id="headerFormat">Best of 3</span>
+</div>
+
+<div class="winner-section">
+  <div class="result-label">Match Complete · Winner</div>
+  <div class="winner-name" id="winnerDisplay">Team Alpha</div>
+  <div class="wins-text" id="winsText">Advances to Semifinals</div>
+  <div class="divider">
+    <div class="div-line"></div>
+    <div class="div-gem"></div>
+    <div class="div-line"></div>
+  </div>
+</div>
+
+<div class="scoreboard">
+  <div class="score-side winner" id="winnerSide">
+    <div class="winner-badge"><span class="winner-badge-text">Winner</span></div>
+    <div class="ss-label">Blue Side</div>
+    <div class="ss-team" id="winnerTeam">Team Alpha</div>
+    <div class="ss-num" id="winnerScore">2</div>
+    <div class="ss-wins">Wins</div>
+  </div>
+  <div class="score-mid"><div class="score-colon">–</div></div>
+  <div class="score-side loser" id="loserSide">
+    <div class="ss-label">Red Side</div>
+    <div class="ss-team" id="loserTeam">Team Bravo</div>
+    <div class="ss-num" id="loserScore">1</div>
+    <div class="ss-wins">Wins</div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <span class="bottom-item">Corporate Esports Association</span>
+  <div class="bottom-sep"></div>
+  <span class="bottom-item" id="bottomEvent">Spring Season 2025</span>
+  <div class="bottom-sep"></div>
+  <span class="bottom-item">League of Legends</span>
+</div>
+
+<script>
+  const CONFIG = {
+    winner:"Team Alpha", loser:"Team Bravo",
+    winnerScore:"2", loserScore:"1",
+    winnerSide:"Blue Side", loserSide:"Red Side",
+    winsText:"Advances to Semifinals",
+    event:"Spring Season 2025", round:"Quarterfinals", format:"Best of 3",
+  };
+  const p = new URLSearchParams(location.search);
+  ["winner","loser","winnerScore","loserScore","winnerSide","loserSide","winsText","event","round","format"].forEach(k => {
+    if (p.get(k)) CONFIG[k] = p.get(k);
+  });
+  document.getElementById("winnerDisplay").textContent = CONFIG.winner;
+  document.getElementById("winsText").textContent      = CONFIG.winsText;
+  document.getElementById("winnerTeam").textContent    = CONFIG.winner;
+  document.getElementById("loserTeam").textContent     = CONFIG.loser;
+  document.getElementById("winnerScore").textContent   = CONFIG.winnerScore;
+  document.getElementById("loserScore").textContent    = CONFIG.loserScore;
+  document.getElementById("winnerSide").querySelector(".ss-label").textContent = CONFIG.winnerSide;
+  document.getElementById("loserSide").querySelector(".ss-label").textContent  = CONFIG.loserSide;
+  document.getElementById("headerEvent").textContent   = CONFIG.event;
+  document.getElementById("headerRound").textContent   = CONFIG.round;
+  document.getElementById("headerFormat").textContent  = CONFIG.format;
+  document.getElementById("bottomEvent").textContent   = CONFIG.event;
+</script>
+</body>
+</html>

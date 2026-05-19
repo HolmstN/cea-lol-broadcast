@@ -1,88 +1,36 @@
-import { useState, useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { useState } from "react";
+import LiveView from "./views/LiveView";
+import TeamsView from "./views/TeamsView";
+import StreamerView from "./views/StreamerView";
+import StatsView from "./views/StatsView";
+import MatchView from "./views/MatchView";
 import "./App.css";
 
-type Status = "idle" | "connecting" | "connected" | "not_found" | "error";
+type Tab = "live" | "teams" | "stats" | "match" | "streamer";
 
 export default function App() {
-  const [status, setStatus] = useState<Status>("idle");
-  const [events, setEvents] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
-  const unlistenRef = useRef<UnlistenFn | null>(null);
-
-  useEffect(() => {
-    return () => {
-      unlistenRef.current?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [events]);
-
-  async function connect() {
-    setStatus("connecting");
-    setError(null);
-
-    // Subscribe to LCU events before connecting
-    unlistenRef.current?.();
-    unlistenRef.current = await listen<unknown>("lcu-event", (e) => {
-      setEvents((prev) => [
-        ...prev.slice(-199), // keep last 200
-        JSON.stringify(e.payload, null, 2),
-      ]);
-    });
-
-    await listen("lcu-disconnected", () => {
-      setStatus("idle");
-    });
-
-    try {
-      const found = await invoke<boolean>("connect_lcu");
-      setStatus(found ? "connected" : "not_found");
-    } catch (e) {
-      setStatus("error");
-      setError(String(e));
-    }
-  }
+  const [tab, setTab] = useState<Tab>("live");
 
   return (
     <main>
       <header>
         <h1>CEA LoL Broadcast</h1>
-        <div className="status-row">
-          <span className={`dot ${status}`} />
-          <span className="status-label">{statusLabel(status)}</span>
-          <button onClick={connect} disabled={status === "connecting" || status === "connected"}>
-            {status === "connecting" ? "Connecting…" : "Connect to LCU"}
-          </button>
-        </div>
-        {error && <p className="error">{error}</p>}
+        <nav className="tabs">
+          <button className={`tab ${tab === "live"     ? "active" : ""}`} onClick={() => setTab("live")}>Live</button>
+          <button className={`tab ${tab === "teams"    ? "active" : ""}`} onClick={() => setTab("teams")}>Teams</button>
+          <button className={`tab ${tab === "stats"    ? "active" : ""}`} onClick={() => setTab("stats")}>Stats</button>
+          <button className={`tab ${tab === "match"    ? "active" : ""}`} onClick={() => setTab("match")}>Match</button>
+          <button className={`tab ${tab === "streamer" ? "active" : ""}`} onClick={() => setTab("streamer")}>Streamer</button>
+        </nav>
       </header>
 
-      <div className="log" ref={logRef}>
-        {events.length === 0 ? (
-          <p className="empty">No events yet — connect and interact with the League client.</p>
-        ) : (
-          events.map((ev, i) => (
-            <pre key={i} className="event">{ev}</pre>
-          ))
-        )}
+      <div className="view">
+        {tab === "live"     && <LiveView />}
+        {tab === "teams"    && <TeamsView />}
+        {tab === "stats"    && <StatsView />}
+        {tab === "match"    && <MatchView />}
+        {tab === "streamer" && <StreamerView />}
       </div>
     </main>
   );
-}
-
-function statusLabel(s: Status) {
-  return {
-    idle: "Not connected",
-    connecting: "Connecting…",
-    connected: "Connected",
-    not_found: "League client not found",
-    error: "Error",
-  }[s];
 }

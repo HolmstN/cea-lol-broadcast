@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>CEA LoL - Matchup Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--gold-light:#F0E6D3;--gold-mid:#C8AA6E;--gold-dark:#785A28;--gold-bright:#C89B3C;--blue-bright:#0BC4E3;--bg:#010A13;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-family:Inter,sans-serif;color:var(--gold-light);}
+.bg-hex{position:absolute;inset:-100px;opacity:0.06;background-size:100px 115px;animation:hexDrift 20s linear infinite;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27115%27%3E%3Cpolygon points=%2750,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5%27 stroke=%27%23C8AA6E%27 stroke-width=%271%27 fill=%27none%27/%3E%3C/svg%3E");}
+.bg-radial{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(3,38,64,.5) 0%,transparent 70%),radial-gradient(ellipse 110% 40% at 50% 0%,rgba(1,10,19,.85) 0%,transparent 55%),radial-gradient(ellipse 110% 40% at 50% 100%,rgba(1,10,19,.95) 0%,transparent 55%);}
+.top-bar{position:absolute;top:0;left:0;right:0;height:64px;background:rgba(1,10,19,.92);border-bottom:1px solid rgba(200,170,110,.25);display:flex;align-items:center;justify-content:center;gap:16px;z-index:10;}
+.top-team1{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:#0BC4E3;letter-spacing:.08em;}
+.top-vs{font-family:Cinzel,serif;font-size:18px;font-weight:700;color:var(--gold-mid);letter-spacing:.2em;}
+.top-team2{font-family:Cinzel,serif;font-size:22px;font-weight:700;color:#E57373;letter-spacing:.08em;}
+.top-sep{width:4px;height:4px;background:var(--gold-bright);transform:rotate(45deg);box-shadow:0 0 6px var(--gold-bright);flex-shrink:0;}
+.top-event{font-family:Cinzel,serif;font-size:13px;color:var(--gold-mid);letter-spacing:.2em;text-transform:uppercase;}
+.bottom-bar{position:absolute;bottom:0;left:0;right:0;height:50px;background:rgba(1,10,19,.92);border-top:1px solid rgba(200,170,110,.2);display:flex;align-items:center;justify-content:center;gap:20px;z-index:10;}
+.bottom-bar-text{font-size:13px;font-weight:500;letter-spacing:.2em;color:rgba(200,170,110,.55);text-transform:uppercase;}
+.bottom-bar-sep{width:3px;height:3px;background:var(--gold-dark);transform:rotate(45deg);}
+.rows-area{position:absolute;top:64px;bottom:50px;left:0;right:0;display:flex;flex-direction:column;gap:8px;padding:16px 50px;}
+
+.role-row{flex:1;display:flex;align-items:stretch;background:linear-gradient(90deg,rgba(10,20,40,.8) 0%,rgba(5,12,24,.6) 100%);border:1px solid rgba(200,170,110,.1);opacity:0;animation:psRowIn .45s cubic-bezier(.25,.46,.45,.94) forwards;}
+.role-row:nth-child(1){animation-delay:.08s}.role-row:nth-child(2){animation-delay:.18s}.role-row:nth-child(3){animation-delay:.28s}.role-row:nth-child(4){animation-delay:.38s}.role-row:nth-child(5){animation-delay:.48s}
+.b-accent{width:4px;flex-shrink:0;background:#0BC4E3;box-shadow:0 0 8px #0BC4E380;}
+.r-accent{width:4px;flex-shrink:0;background:#E57373;box-shadow:0 0 8px #E5737380;}
+.sep{width:1px;flex-shrink:0;background:rgba(200,170,110,.07);align-self:stretch;}
+
+/* Blue side columns (left-to-right order) */
+.b-name-blk{flex:1;min-width:0;display:flex;align-items:center;padding:0 16px;}
+.b-name{font-family:Cinzel,serif;font-size:20px;font-weight:700;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em;}
+
+/* Red side columns (right-to-left, mirrored) */
+.r-name-blk{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;padding:0 16px;}
+.r-name{font-family:Cinzel,serif;font-size:20px;font-weight:700;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em;text-align:right;}
+
+.stat-lbl{font-size:8px;font-weight:700;letter-spacing:.3em;color:rgba(200,170,110,.4);text-transform:uppercase;}
+
+/* Shared stat block */
+.wr-blk{width:120px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 6px;}
+.wr-row{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.wr-sub-lbl{font-size:7px;color:rgba(200,170,110,.3);letter-spacing:.2em;text-transform:uppercase;}
+.wr-line{display:flex;align-items:baseline;gap:3px;}
+.rw{font-family:Cinzel,serif;font-size:13px;font-weight:700;color:#5CB85C;}
+.rs{font-size:11px;color:rgba(200,170,110,.35);}
+.rl{font-family:Cinzel,serif;font-size:13px;font-weight:700;color:#E57373;}
+.wr-pct{font-size:9px;color:rgba(200,170,110,.5);}
+
+.kda-blk{width:165px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 8px;}
+.kda-nums{display:flex;align-items:baseline;gap:4px;}
+.kda-k{font-family:Cinzel,serif;font-size:19px;font-weight:700;color:#5CB85C;}
+.kda-d{font-family:Cinzel,serif;font-size:19px;font-weight:700;color:#E57373;}
+.kda-a{font-family:Cinzel,serif;font-size:19px;font-weight:700;color:var(--gold-mid);}
+.kda-slash{font-size:14px;color:rgba(200,170,110,.3);}
+.kda-ratio{font-size:10px;color:rgba(200,170,110,.5);}
+.kda-ratio em{font-style:normal;color:var(--gold-bright);font-size:12px;font-weight:700;}
+
+.rate-blk{width:105px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 6px;}
+.rate-item{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.rate-val{font-size:14px;font-weight:700;color:var(--gold-light);}
+
+/* VS center */
+.vs-blk{width:96px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-left:1px solid rgba(200,170,110,.1);border-right:1px solid rgba(200,170,110,.1);}
+.vs-icon{width:34px;height:34px;object-fit:contain;}
+.vs-label{font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--gold-mid);text-transform:uppercase;}
+
+@keyframes hexDrift{from{transform:translate(0,0)}to{transform:translate(100px,115px)}}
+@keyframes psRowIn{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div class="bg-hex"></div>
+<div class="bg-radial"></div>
+<div class="top-bar">
+  <span class="top-team1" id="ms-team1">Team Alpha</span>
+  <span class="top-vs">VS</span>
+  <span class="top-team2" id="ms-team2">Team Bravo</span>
+  <div class="top-sep"></div>
+  <span class="top-event" id="ms-event">Spring Season 2025</span>
+</div>
+<div class="rows-area" id="rows-area"></div>
+<div class="bottom-bar">
+  <span class="bottom-bar-text">Corporate Esports Association</span>
+  <div class="bottom-bar-sep"></div>
+  <span class="bottom-bar-text">League of Legends</span>
+</div>
+<script>
+const ROLE_DEFS=[
+  {key:"top",label:"Top",    icon:"icons/Position_Challenger-Top.png"},
+  {key:"jg", label:"Jungle", icon:"icons/Position_Challenger-Jungle.png"},
+  {key:"mid",label:"Mid",    icon:"icons/Position_Challenger-Mid.png"},
+  {key:"adc",label:"ADC",    icon:"icons/Position_Challenger-Bot.png"},
+  {key:"sup",label:"Support",icon:"icons/Position_Challenger-Support.png"},
+];
+const CONFIG={
+  team1:"Team Alpha",team2:"Team Bravo",event:"Spring Season 2025",
+  b_top_name:"TopLaner",  b_top_game_wins:"8",b_top_game_losses:"3",b_top_game_wr:"72%",b_top_match_wins:"4",b_top_match_losses:"2",b_top_match_wr:"66%",b_top_avg_k:"4.5",b_top_avg_d:"1.8",b_top_avg_a:"3.2",b_top_kda:"4.28",b_top_cs_min:"7.4",b_top_gold_min:"456",
+  b_jg_name:"Jungler",    b_jg_game_wins:"8", b_jg_game_losses:"3", b_jg_game_wr:"72%", b_jg_match_wins:"4", b_jg_match_losses:"2", b_jg_match_wr:"66%", b_jg_avg_k:"3.2", b_jg_avg_d:"2.1", b_jg_avg_a:"6.1", b_jg_kda:"4.43", b_jg_cs_min:"6.1", b_jg_gold_min:"398",
+  b_mid_name:"MidLaner",  b_mid_game_wins:"8",b_mid_game_losses:"3",b_mid_game_wr:"72%",b_mid_match_wins:"4",b_mid_match_losses:"2",b_mid_match_wr:"66%",b_mid_avg_k:"5.4",b_mid_avg_d:"1.5",b_mid_avg_a:"4.1",b_mid_kda:"6.33",b_mid_cs_min:"8.2",b_mid_gold_min:"492",
+  b_adc_name:"ADCPlayer", b_adc_game_wins:"8",b_adc_game_losses:"3",b_adc_game_wr:"72%",b_adc_match_wins:"4",b_adc_match_losses:"2",b_adc_match_wr:"66%",b_adc_avg_k:"4.9",b_adc_avg_d:"2.3",b_adc_avg_a:"2.9",b_adc_kda:"3.39",b_adc_cs_min:"8.8",b_adc_gold_min:"512",
+  b_sup_name:"Support",   b_sup_game_wins:"8",b_sup_game_losses:"3",b_sup_game_wr:"72%",b_sup_match_wins:"4",b_sup_match_losses:"2",b_sup_match_wr:"66%",b_sup_avg_k:"1.1",b_sup_avg_d:"2.7",b_sup_avg_a:"8.6",b_sup_kda:"3.59",b_sup_cs_min:"1.2",b_sup_gold_min:"251",
+  r_top_name:"TopLaner2", r_top_game_wins:"5",r_top_game_losses:"6",r_top_game_wr:"45%",r_top_match_wins:"2",r_top_match_losses:"4",r_top_match_wr:"33%",r_top_avg_k:"3.2",r_top_avg_d:"2.5",r_top_avg_a:"2.8",r_top_kda:"2.40",r_top_cs_min:"7.1",r_top_gold_min:"418",
+  r_jg_name:"Jungler2",   r_jg_game_wins:"5", r_jg_game_losses:"6", r_jg_game_wr:"45%", r_jg_match_wins:"2", r_jg_match_losses:"4", r_jg_match_wr:"33%", r_jg_avg_k:"2.8", r_jg_avg_d:"3.1", r_jg_avg_a:"5.5", r_jg_kda:"2.68", r_jg_cs_min:"5.8", r_jg_gold_min:"372",
+  r_mid_name:"MidLaner2", r_mid_game_wins:"5",r_mid_game_losses:"6",r_mid_game_wr:"45%",r_mid_match_wins:"2",r_mid_match_losses:"4",r_mid_match_wr:"33%",r_mid_avg_k:"4.1",r_mid_avg_d:"2.2",r_mid_avg_a:"3.8",r_mid_kda:"3.59",r_mid_cs_min:"7.9",r_mid_gold_min:"460",
+  r_adc_name:"ADCPlayer2",r_adc_game_wins:"5",r_adc_game_losses:"6",r_adc_game_wr:"45%",r_adc_match_wins:"2",r_adc_match_losses:"4",r_adc_match_wr:"33%",r_adc_avg_k:"3.8",r_adc_avg_d:"2.8",r_adc_avg_a:"2.5",r_adc_kda:"2.25",r_adc_cs_min:"8.3",r_adc_gold_min:"478",
+  r_sup_name:"Support2",  r_sup_game_wins:"5",r_sup_game_losses:"6",r_sup_game_wr:"45%",r_sup_match_wins:"2",r_sup_match_losses:"4",r_sup_match_wr:"33%",r_sup_avg_k:"0.9",r_sup_avg_d:"3.2",r_sup_avg_a:"7.1",r_sup_kda:"2.50",r_sup_cs_min:"1.1",r_sup_gold_min:"232",
+};
+function getParams(){const q=new URLSearchParams(location.search),p={};for(const[k,v]of q)p[k]=v;return Object.keys(p).length?p:CONFIG;}
+function mk(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function tx(e,t){e.textContent=t;return e;}
+function sep(){return mk("div","sep");}
+
+function makeSideStats(p, pfx) {
+  const gwb=mk("div","wr-blk");
+  gwb.appendChild(tx(mk("div","stat-lbl"),"Game / Match WR"));
+  const gr=mk("div","wr-row");
+  gr.appendChild(tx(mk("div","wr-sub-lbl"),"game"));
+  const gl=mk("div","wr-line");
+  gl.appendChild(tx(mk("span","rw"),(p[pfx+"_game_wins"]||"0")+"W"));gl.appendChild(tx(mk("span","rs"),"–"));gl.appendChild(tx(mk("span","rl"),(p[pfx+"_game_losses"]||"0")+"L"));
+  gr.appendChild(gl);gr.appendChild(tx(mk("div","wr-pct"),(p[pfx+"_game_wr"]||"—")));gwb.appendChild(gr);
+  const mr=mk("div","wr-row");
+  mr.appendChild(tx(mk("div","wr-sub-lbl"),"match"));
+  const ml=mk("div","wr-line");
+  ml.appendChild(tx(mk("span","rw"),(p[pfx+"_match_wins"]||"0")+"W"));ml.appendChild(tx(mk("span","rs"),"–"));ml.appendChild(tx(mk("span","rl"),(p[pfx+"_match_losses"]||"0")+"L"));
+  mr.appendChild(ml);mr.appendChild(tx(mk("div","wr-pct"),(p[pfx+"_match_wr"]||"—")));gwb.appendChild(mr);
+
+  const kb=mk("div","kda-blk");kb.appendChild(tx(mk("div","stat-lbl"),"Avg K / D / A"));
+  const kn=mk("div","kda-nums");
+  kn.appendChild(tx(mk("span","kda-k"),p[pfx+"_avg_k"]||"0.0"));kn.appendChild(tx(mk("span","kda-slash"),"/"));
+  kn.appendChild(tx(mk("span","kda-d"),p[pfx+"_avg_d"]||"0.0"));kn.appendChild(tx(mk("span","kda-slash"),"/"));
+  kn.appendChild(tx(mk("span","kda-a"),p[pfx+"_avg_a"]||"0.0"));kb.appendChild(kn);
+  const kr=mk("div","kda-ratio");const ke=mk("em");ke.textContent=p[pfx+"_kda"]||"—";kr.appendChild(ke);kr.appendChild(document.createTextNode(" KDA"));kb.appendChild(kr);
+
+  const rb=mk("div","rate-blk");
+  const ci=mk("div","rate-item");ci.appendChild(tx(mk("div","stat-lbl"),"CS/min"));ci.appendChild(tx(mk("div","rate-val"),p[pfx+"_cs_min"]||"—"));rb.appendChild(ci);
+  const gi=mk("div","rate-item");gi.appendChild(tx(mk("div","stat-lbl"),"Gold/min"));gi.appendChild(tx(mk("div","rate-val"),p[pfx+"_gold_min"]||"—"));rb.appendChild(gi);
+
+  return {gwb, kb, rb};
+}
+
+function buildRows(p){
+  const area=document.getElementById("rows-area");
+  area.innerHTML="";
+  ROLE_DEFS.forEach(r=>{
+    const bpfx="b_"+r.key, rpfx="r_"+r.key;
+    const row=mk("div","role-row");
+    // Blue side
+    row.appendChild(mk("div","b-accent"));
+    const bnb=mk("div","b-name-blk");bnb.appendChild(tx(mk("div","b-name"),p[bpfx+"_name"]||"—"));row.appendChild(bnb);row.appendChild(sep());
+    const bs=makeSideStats(p,bpfx);
+    row.appendChild(bs.gwb);row.appendChild(sep());row.appendChild(bs.kb);row.appendChild(sep());row.appendChild(bs.rb);
+    // VS center
+    row.appendChild(sep());
+    const vs=mk("div","vs-blk");const vi=mk("img","vs-icon");vi.src=r.icon;vs.appendChild(vi);vs.appendChild(tx(mk("div","vs-label"),"VS"));row.appendChild(vs);
+    row.appendChild(sep());
+    // Red side
+    const rs=makeSideStats(p,rpfx);
+    row.appendChild(rs.rb);row.appendChild(sep());row.appendChild(rs.kb);row.appendChild(sep());row.appendChild(rs.gwb);
+    row.appendChild(sep());
+    const rnb=mk("div","r-name-blk");rnb.appendChild(tx(mk("div","r-name"),p[rpfx+"_name"]||"—"));row.appendChild(rnb);
+    row.appendChild(mk("div","r-accent"));
+    area.appendChild(row);
+  });
+}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+const p=getParams();
+setText("ms-team1",p.team1||CONFIG.team1);
+setText("ms-team2",p.team2||CONFIG.team2);
+setText("ms-event",p.event||CONFIG.event);
+buildRows(p);
+</script>
+</body>
+</html>
