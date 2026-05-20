@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Team, Player, TeamRecord, PlayerExtendedStats, ChampionStat } from "../types";
 
@@ -179,16 +179,11 @@ const SCENE_ORDER: SceneId[] = [
   "player-stats", "matchup-stats", "player-spotlight",
 ];
 
-const PREVIEW_FILE: Partial<Record<SceneId, string>> = {
-  "starting-soon":    "starting-soon.html",
-  "match-intro":      "match-intro.html",
-  "lower-third":      "lower-third.html",
-  "break":            "break.html",
-  "match-result":     "match-result.html",
-  "player-stats":     "player-stats.html",
-  "matchup-stats":    "matchup-stats.html",
-  "player-spotlight": "player-spotlight.html",
-};
+const OVERLAY_URL = "http://localhost:5174";
+const HAS_PREVIEW: Set<SceneId> = new Set([
+  "starting-soon", "match-intro", "lower-third", "break", "match-result",
+  "player-stats", "matchup-stats", "player-spotlight",
+]);
 
 type AllParams = Record<SceneId, Record<string, string>>;
 
@@ -436,20 +431,6 @@ export default function StreamerView() {
   }
 
   const previewRef = useRef<HTMLDivElement>(null);
-  const iframeRef  = useRef<HTMLIFrameElement>(null);
-
-  const scalePreview = useCallback(() => {
-    if (!previewRef.current || !iframeRef.current) return;
-    const scale = previewRef.current.clientWidth / 1920;
-    iframeRef.current.style.transform = `scale(${scale})`;
-  }, []);
-
-  useEffect(() => {
-    scalePreview();
-    const ro = new ResizeObserver(scalePreview);
-    if (previewRef.current) ro.observe(previewRef.current);
-    return () => ro.disconnect();
-  }, [scalePreview, selected]);
 
   const sceneDef = SCENES[selected];
   const paramEntries = (Object.entries(sceneDef.params) as [string, ParamDef][]).filter(([, def]) => !def.hidden);
@@ -484,7 +465,7 @@ export default function StreamerView() {
         <div className="obs-instructions">
           <div className="obs-title">OBS Setup</div>
           <div className="obs-step">1. Add Browser Source</div>
-          <div className="obs-step">2. Point to <code>overlay-live.html</code></div>
+          <div className="obs-step">2. Point to <code>http://localhost:5174</code></div>
           <div className="obs-step">3. Set 1920 × 1080</div>
           <div className="obs-ws">WS: <code>ws://127.0.0.1:7233</code></div>
         </div>
@@ -511,14 +492,12 @@ export default function StreamerView() {
 
         {/* ── Preview ── */}
         <div className="scene-preview" ref={previewRef}>
-          {PREVIEW_FILE[selected] ? (
+          {HAS_PREVIEW.has(selected) ? (
             <iframe
-              key={selected}
-              ref={iframeRef}
-              src={`http://127.0.0.1:7234/${PREVIEW_FILE[selected]}`}
+              src={OVERLAY_URL}
               className="preview-iframe"
               title="Overlay Preview"
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-same-origin"
             />
           ) : (
             <div className="preview-idle">Overlay Off</div>
