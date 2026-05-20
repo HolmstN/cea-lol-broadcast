@@ -435,10 +435,7 @@ impl LiveClientPoller {
                                         "GameEnd" => {
                                             game_ended = true;
                                         }
-                                        other => {
-                                            // Emit unknown event names for debugging
-                                            let _ = app.emit("live-debug-event", other.to_string());
-                                        }
+                                        _ => {}
                                     }
                                 }
 

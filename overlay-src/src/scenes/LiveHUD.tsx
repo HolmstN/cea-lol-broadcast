@@ -332,12 +332,6 @@ export default function LiveHUD({ params }: { params: Params }) {
             {/* Dragon */}
             <div className="flex items-center gap-[0.3vw]">
               <span>Dragon</span>
-              {/* DEBUG: remove once dragon chips confirmed working */}
-              <span
-                style={{ color: "#ffff00", fontSize: "0.4vw", opacity: 0.7 }}
-              >
-                [{q("_dbg_obj_types", "?")}]
-              </span>
               <div className="flex gap-[0.15vw]">
                 {dragonList.map((name, i) => {
                   const { abbr, color } = dragonChipInfo(name);
