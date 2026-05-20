@@ -1,6 +1,7 @@
 mod cea;
 mod db;
 mod lcu;
+mod liveclient;
 mod ocr;
 mod overlay;
 mod riot;
@@ -9,6 +10,7 @@ use cea::*;
 use db::commands::*;
 use db::Db;
 use lcu::{LcuClient, LcuCredentials};
+use liveclient::LiveClientPoller;
 use overlay::OverlayServer;
 use riot::RiotGateway;
 use std::collections::HashMap;
@@ -114,6 +116,49 @@ async fn riot_fetch_rank(
     gateway.fetch_player_rank(&summoner_name).await
 }
 
+// ── Replay control ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn seek_replay(time: f64) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| e.to_string())?;
+    client
+        .post("https://127.0.0.1:2999/replay/playback")
+        .json(&serde_json::json!({ "time": time, "paused": false }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ── Live Client API commands ──────────────────────────────────────────────────
+
+#[tauri::command]
+async fn start_live_poll(
+    app: tauri::AppHandle,
+    poller: tauri::State<'_, Arc<LiveClientPoller>>,
+) -> Result<bool, String> {
+    Ok(poller.start(app))
+}
+
+#[tauri::command]
+async fn stop_live_poll(
+    poller: tauri::State<'_, Arc<LiveClientPoller>>,
+) -> Result<(), String> {
+    poller.stop();
+    Ok(())
+}
+
+#[tauri::command]
+async fn live_poll_status(
+    poller: tauri::State<'_, Arc<LiveClientPoller>>,
+) -> Result<bool, String> {
+    Ok(poller.is_running())
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -127,6 +172,8 @@ pub fn run() {
 
     let overlay = OverlayServer::new();
     overlay.clone().start();
+
+    let live_poller = LiveClientPoller::new();
 
     let riot_cfg = load_riot_config();
     let gateway = RiotGateway::new(
@@ -158,6 +205,7 @@ pub fn run() {
         .manage(db)
         .manage(overlay)
         .manage(gateway)
+        .manage(live_poller)
         .invoke_handler(tauri::generate_handler![
             connect_lcu,
             get_teams,
@@ -198,6 +246,10 @@ pub fn run() {
             riot_set_config,
             riot_get_config,
             riot_fetch_rank,
+            start_live_poll,
+            stop_live_poll,
+            live_poll_status,
+            seek_replay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

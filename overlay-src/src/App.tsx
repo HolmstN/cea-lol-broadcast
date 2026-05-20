@@ -8,6 +8,8 @@ import MatchResult from './scenes/MatchResult';
 import PlayerStats from './scenes/PlayerStats';
 import MatchupStats from './scenes/MatchupStats';
 import PlayerSpotlight from './scenes/PlayerSpotlight';
+import LowerThird from './scenes/LowerThird';
+import LiveHUD from './scenes/LiveHUD';
 
 type Params = Record<string, string>;
 type SceneComp = React.ComponentType<{ params: Params }>;
@@ -21,6 +23,8 @@ const SCENES: Record<string, SceneComp> = {
   'player-stats':     PlayerStats,
   'matchup-stats':    MatchupStats,
   'player-spotlight': PlayerSpotlight,
+  'lower-third':      LowerThird,
+  'live-hud':         LiveHUD,
 };
 
 export default function App() {
