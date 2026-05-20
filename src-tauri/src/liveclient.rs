@@ -22,6 +22,8 @@ struct GameMeta {
 
 #[derive(serde::Deserialize)]
 struct LiveItem {
+    #[serde(rename = "itemID")]
+    item_id: u32,
     price: u32,
     count: u32,
 }
@@ -114,6 +116,7 @@ pub struct PlayerSummary {
     pub assists: u32,
     pub cs: u32,
     pub effective_gold: u32,
+    pub items: Vec<u32>,
 }
 
 #[derive(serde::Serialize, Clone)]
@@ -256,6 +259,7 @@ impl LiveClientPoller {
                                         assists: p.scores.assists,
                                         cs: p.scores.creep_score,
                                         effective_gold: player_gold(p),
+                                        items: p.items.iter().filter(|i| i.item_id > 0).map(|i| i.item_id).collect(),
                                     })
                                     .collect();
 
@@ -395,6 +399,16 @@ impl LiveClientPoller {
                                                 team,
                                                 name: "Herald".into(),
                                                 stolen: ev.stolen.eq_ignore_ascii_case("true"),
+                                                game_time: data.game_data.game_time,
+                                            });
+                                        }
+                                        "VoidGrubKill" | "VoidMonsterKill" => {
+                                            let team = team_map.get(&ev.killer_name.to_lowercase()).cloned().unwrap_or_default();
+                                            let _ = app.emit("live-objective", ObjectiveEvent {
+                                                event_type: "VoidGrub".into(),
+                                                team,
+                                                name: "VoidGrub".into(),
+                                                stolen: false,
                                                 game_time: data.game_data.game_time,
                                             });
                                         }

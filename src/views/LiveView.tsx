@@ -24,6 +24,7 @@ interface KillPayload {
 interface PlayerSummary {
   name: string; champion: string; team: string;
   kills: number; deaths: number; assists: number; cs: number; effective_gold: number;
+  items: number[];
 }
 interface LiveTickPayload {
   game_time: number; blue_kills: number; red_kills: number;
@@ -69,6 +70,14 @@ function dragonInfo(name: string): { abbr: string; color: string } {
   return { abbr: name.slice(0, 2).toUpperCase() || "DR", color: "#888" };
 }
 
+const DDRAGON = 'https://ddragon.leagueoflegends.com/cdn/16.10.1';
+function itemImgUrl(id: number) { return `${DDRAGON}/img/item/${id}.png`; }
+function fmtCountdown(secs: number) {
+  if (secs <= 0) return 'UP';
+  const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function buildHudParams(t: LiveTickPayload, team1: string, team2: string): Record<string, string> {
   const params: Record<string, string> = {
     timer:      fmtTime(t.game_time),
@@ -86,10 +95,35 @@ function buildHudParams(t: LiveTickPayload, team1: string, team2: string): Recor
       [`${prefix}${i}_k`]: String(p.kills), [`${prefix}${i}_d`]: String(p.deaths),
       [`${prefix}${i}_a`]: String(p.assists), [`${prefix}${i}_cs`]: String(p.cs),
       [`${prefix}${i}_gold`]: String(p.effective_gold),
+      [`${prefix}${i}_items`]: p.items.filter(id => id > 0).join(","),
     }));
   fill("b", blue);
   fill("r", red);
   return params;
+}
+
+function buildObjectiveParams(objs: ObjectiveEvent[], gt: number): Record<string, string> {
+  const byTeam = (team: string) => objs.filter(o => o.team === team);
+  const ofType = (arr: ObjectiveEvent[], type: string) => arr.filter(o => o.event_type === type);
+  const dragons = objs.filter(o => o.event_type === "Dragon").sort((a, b) => a.game_time - b.game_time);
+  const lastDragon = dragons[dragons.length - 1];
+  const nextDragonAt = lastDragon
+    ? lastDragon.game_time + (lastDragon.name.toLowerCase().includes("elder") ? 360 : 300)
+    : 300;
+  const barons = objs.filter(o => o.event_type === "Baron").sort((a, b) => a.game_time - b.game_time);
+  const lastBaron = barons[barons.length - 1];
+  const nextBaronAt = lastBaron ? lastBaron.game_time + 360 : 1200;
+  const blueO = byTeam("ORDER");
+  const redO  = byTeam("CHAOS");
+  return {
+    dragon_names: dragons.map(d => d.name).join(","),
+    dragon_timer: fmtCountdown(nextDragonAt - gt),
+    baron_timer:  (gt >= 900 || lastBaron !== undefined) ? fmtCountdown(nextBaronAt - gt) : "",
+    grub_blue:    String(ofType(blueO, "VoidGrub").length),
+    grub_red:     String(ofType(redO,  "VoidGrub").length),
+    tower_blue:   String(ofType(blueO, "Tower").length),
+    tower_red:    String(ofType(redO,  "Tower").length),
+  };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -126,10 +160,14 @@ export default function LiveView() {
   const [hudActive, setHudActive] = useState(false);
   const [hudTeam1, setHudTeam1]   = useState("Blue");
   const [hudTeam2, setHudTeam2]   = useState("Red");
-  const hudActiveRef  = useRef(false);
-  const hudParamsRef  = useRef<Record<string, string>>({});
-  const hudTeam1Ref   = useRef("Blue");
-  const hudTeam2Ref   = useRef("Red");
+  const hudActiveRef   = useRef(false);
+  const hudParamsRef   = useRef<Record<string, string>>({});
+  const hudTeam1Ref    = useRef("Blue");
+  const hudTeam2Ref    = useRef("Red");
+  const objectivesRef  = useRef<ObjectiveEvent[]>([]);
+
+  // Champion name → ddragon key map
+  const [champMap, setChampMap] = useState<Record<string, string>>({});
 
   // Replay clips
   const [clips, setClips]               = useState<ReplayClip[]>([]);
@@ -145,6 +183,18 @@ export default function LiveView() {
   useEffect(() => { hudActiveRef.current = hudActive; }, [hudActive]);
   useEffect(() => { hudTeam1Ref.current = hudTeam1; }, [hudTeam1]);
   useEffect(() => { hudTeam2Ref.current = hudTeam2; }, [hudTeam2]);
+  useEffect(() => { objectivesRef.current = objectives; }, [objectives]);
+
+  useEffect(() => {
+    fetch(`${DDRAGON}/data/en_US/champion.json`)
+      .then(r => r.json())
+      .then((data: { data: Record<string, { name: string }> }) => {
+        const m: Record<string, string> = {};
+        for (const [id, c] of Object.entries(data.data)) m[c.name.toLowerCase()] = id;
+        setChampMap(m);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -248,11 +298,11 @@ export default function LiveView() {
       }
 
       if (hudActiveRef.current && !displayingRef.current) {
-        const hp = buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current);
+        const hp = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current, t.game_time) };
         hudParamsRef.current = hp;
         invoke("set_overlay_scene", { scene: "live-hud", params: hp }).catch(() => {});
       } else if (hudActiveRef.current) {
-        hudParamsRef.current = buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current);
+        hudParamsRef.current = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current, t.game_time) };
       }
     }));
 
@@ -310,7 +360,7 @@ export default function LiveView() {
     setHudActive(true);
     if (players.length > 0) {
       const tick: LiveTickPayload = { game_time: gameTime, blue_kills: blueKills, red_kills: redKills, blue_gold: blueGold, red_gold: redGold, players };
-      const hp = buildHudParams(tick, hudTeam1Ref.current, hudTeam2Ref.current);
+      const hp = { ...buildHudParams(tick, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectives, gameTime) };
       hudParamsRef.current = hp;
       invoke("set_overlay_scene", { scene: "live-hud", params: hp }).catch(() => {});
     }
@@ -375,6 +425,11 @@ export default function LiveView() {
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
+  const champImgUrl = (name: string) => {
+    const key = champMap[name.toLowerCase()] ?? name.replace(/[\s'\.&]/g, "");
+    return `${DDRAGON}/img/champion/${key}.png`;
+  };
+
   const blue        = players.filter(p => p.team === "ORDER");
   const red         = players.filter(p => p.team === "CHAOS");
   const totalGold   = blueGold + redGold || 1;
@@ -397,6 +452,25 @@ export default function LiveView() {
   const blueInhibs  = blueObjs.filter(o => o.event_type === "Inhibitor").length;
   const redInhibs   = redObjs.filter(o => o.event_type === "Inhibitor").length;
   const showObjectives = isInGame || objectives.length > 0;
+
+  // Voidgrubs
+  const blueVoidgrubs  = blueObjs.filter(o => o.event_type === "VoidGrub").length;
+  const redVoidgrubs   = redObjs.filter(o => o.event_type === "VoidGrub").length;
+  const totalVoidgrubs = blueVoidgrubs + redVoidgrubs;
+
+  // Dragon & baron timers
+  const allDragons   = objectives.filter(o => o.event_type === "Dragon").sort((a, b) => a.game_time - b.game_time);
+  const lastDragon   = allDragons[allDragons.length - 1];
+  const nextDragonAt = lastDragon
+    ? lastDragon.game_time + (lastDragon.name.toLowerCase().includes("elder") ? 360 : 300)
+    : 300;
+  const dragonCountdown = isInGame ? fmtCountdown(nextDragonAt - gameTime) : "";
+
+  const _barons        = objectives.filter(o => o.event_type === "Baron").sort((a, b) => a.game_time - b.game_time);
+  const lastBaron      = _barons[_barons.length - 1];
+  const nextBaronAt    = lastBaron ? lastBaron.game_time + 360 : 1200;
+  const baronCountdown = isInGame ? fmtCountdown(nextBaronAt - gameTime) : "";
+  const showBaron      = isInGame && (gameTime >= 900 || lastBaron !== undefined);
 
   const objRows = [
     { label: hudTeam1 || "Blue", side: "ORDER", cls: "live-obj-row-blue",
@@ -442,6 +516,43 @@ export default function LiveView() {
             Auto Lower-Third
           </label>
         </div>
+
+        {/* Objective timer bar */}
+        {isInGame && (
+          <div className="live-timer-bar">
+            <div className="live-timer-item">
+              <span className="live-timer-label">Dragon</span>
+              <span className="live-timer-chips">
+                {allDragons.map((d, i) => {
+                  const { abbr, color } = dragonInfo(d.name);
+                  return <span key={i} className="live-timer-dragon" style={{ background: color + "22", color, borderColor: color + "55" }}>{abbr}</span>;
+                })}
+                {allDragons.length === 0 && <span className="live-timer-dim">—</span>}
+              </span>
+              <span className={`live-timer-val${dragonCountdown === "UP" ? " live-timer-up" : ""}`}>{dragonCountdown}</span>
+            </div>
+            {showBaron && (
+              <div className="live-timer-item">
+                <span className="live-timer-label">Baron</span>
+                <span className={`live-timer-val${baronCountdown === "UP" ? " live-timer-up" : ""}`}>{baronCountdown}</span>
+              </div>
+            )}
+            {(totalVoidgrubs > 0 || gameTime < 480) && (
+              <div className="live-timer-item">
+                <span className="live-timer-label">Grubs</span>
+                <span className="live-timer-val live-timer-blue">{blueVoidgrubs}</span>
+                <span className="live-timer-sep">–</span>
+                <span className="live-timer-val live-timer-red">{redVoidgrubs}</span>
+              </div>
+            )}
+            <div className="live-timer-item">
+              <span className="live-timer-label">Towers</span>
+              <span className="live-timer-val live-timer-blue">{blueTowers}</span>
+              <span className="live-timer-sep">–</span>
+              <span className="live-timer-val live-timer-red">{redTowers}</span>
+            </div>
+          </div>
+        )}
 
         {/* HUD control */}
         <div className="hud-toolbar">
@@ -559,11 +670,18 @@ export default function LiveView() {
               </div>
               {blue.map(p => (
                 <div key={p.name} className="live-player-row">
+                  <img className="live-player-champ-icon" src={champImgUrl(p.champion)} alt={p.champion} title={p.champion}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   <span className="live-player-name">{p.name}</span>
-                  <span className="live-player-champ">{p.champion}</span>
                   <span className="live-player-kda">{p.kills}/{p.deaths}/{p.assists}</span>
                   <span className="live-player-cs">{p.cs}cs</span>
                   <span className="live-player-gold">{fmtGold(p.effective_gold)}g</span>
+                  <div className="live-player-items">
+                    {p.items.filter(id => id > 0).map((id, i) => (
+                      <img key={i} className="live-item-icon" src={itemImgUrl(id)} alt="" title={String(id)}
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -573,11 +691,18 @@ export default function LiveView() {
               </div>
               {red.map(p => (
                 <div key={p.name} className="live-player-row">
+                  <img className="live-player-champ-icon" src={champImgUrl(p.champion)} alt={p.champion} title={p.champion}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   <span className="live-player-name">{p.name}</span>
-                  <span className="live-player-champ">{p.champion}</span>
                   <span className="live-player-kda">{p.kills}/{p.deaths}/{p.assists}</span>
                   <span className="live-player-cs">{p.cs}cs</span>
                   <span className="live-player-gold">{fmtGold(p.effective_gold)}g</span>
+                  <div className="live-player-items">
+                    {p.items.filter(id => id > 0).map((id, i) => (
+                      <img key={i} className="live-item-icon" src={itemImgUrl(id)} alt="" title={String(id)}
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

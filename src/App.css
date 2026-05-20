@@ -1351,6 +1351,81 @@ textarea { resize: vertical; }
 .live-gold-diff-blue { color: #0bc4e3; }
 .live-gold-diff-red  { color: #e57373; }
 
+/* ── Objective timer bar ──────────────────────────────────────────────────── */
+
+.live-timer-bar {
+  display: flex;
+  align-items: center;
+  padding: 4px 20px;
+  border-bottom: 1px solid #1e1e1e;
+  background: #080808;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.live-timer-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 14px;
+  border-right: 1px solid #1e1e1e;
+}
+.live-timer-item:first-child { padding-left: 0; }
+.live-timer-item:last-child  { border-right: none; }
+
+.live-timer-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #444;
+  flex-shrink: 0;
+}
+
+.live-timer-chips { display: flex; gap: 2px; align-items: center; }
+
+.live-timer-dragon {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: monospace;
+  padding: 1px 3px;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.live-timer-val  { font-family: monospace; font-size: 12px; font-weight: 700; color: #ccc; }
+.live-timer-up   { color: #7cbd5a; }
+.live-timer-blue { color: #0bc4e3; }
+.live-timer-red  { color: #e57373; }
+.live-timer-sep  { color: #333; font-size: 11px; }
+.live-timer-dim  { color: #333; font-size: 11px; font-family: monospace; }
+
+/* ── Player champ icon & items ────────────────────────────────────────────── */
+
+.live-player-champ-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.live-player-items {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.live-item-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 /* ── Gold graph ───────────────────────────────────────────────────────────── */
 
 .live-gold-section {
