@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Team, Player, TeamRecord, PlayerExtendedStats, ChampionStat } from "../types";
 
+interface StreamerViewProps {
+  blueTeam: Team | null;
+  redTeam:  Team | null;
+  bluePlayers: Player[];
+  redPlayers:  Player[];
+  teams: Team[];
+}
+
 // ─── Scene definitions ──────────────────────────────
 type SceneId =
   | "idle" | "starting-soon" | "match-intro" | "lower-third" | "break" | "match-result"
@@ -202,36 +210,22 @@ function defaultParams(): AllParams {
   return result;
 }
 
-export default function StreamerView() {
+export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayers, teams }: StreamerViewProps) {
   const [liveScene, setLiveScene] = useState<SceneId>("idle");
   const [selected, setSelected]   = useState<SceneId>("idle");
   const [params, setParams]       = useState<AllParams>(defaultParams);
   const [sending, setSending]     = useState(false);
 
-  // DB-driven state
-  const [teams, setTeams]         = useState<Team[]>([]);
-  const [ltTeamId, setLtTeamId]   = useState<number | "">("");
-  const [ltPlayers, setLtPlayers] = useState<Player[]>([]);
-
-  // player-stats pickers
-  const [psTeamId, setPsTeamId]     = useState<number | "">("");
-  const [psPlayers, setPsPlayers]   = useState<Player[]>([]);
+  // player-stats team toggle + role picks
+  const [psTeam, setPsTeam]           = useState<"blue" | "red">("blue");
   const [psRolePicks, setPsRolePicks] = useState<Record<RoleKey, number | "">>({ top: "", jg: "", mid: "", adc: "", sup: "" });
 
-  // matchup-stats pickers
-  const [ms1TeamId, setMs1TeamId]   = useState<number | "">("");
-  const [ms2TeamId, setMs2TeamId]   = useState<number | "">("");
-  const [ms1Players, setMs1Players] = useState<Player[]>([]);
-  const [ms2Players, setMs2Players] = useState<Player[]>([]);
-  const [ms1Picks, setMs1Picks]     = useState<Record<RoleKey, number | "">>({ top: "", jg: "", mid: "", adc: "", sup: "" });
-  const [ms2Picks, setMs2Picks]     = useState<Record<RoleKey, number | "">>({ top: "", jg: "", mid: "", adc: "", sup: "" });
+  // matchup-stats role picks
+  const [ms1Picks, setMs1Picks] = useState<Record<RoleKey, number | "">>({ top: "", jg: "", mid: "", adc: "", sup: "" });
+  const [ms2Picks, setMs2Picks] = useState<Record<RoleKey, number | "">>({ top: "", jg: "", mid: "", adc: "", sup: "" });
 
-  // player-spotlight pickers
-  const [spTeamId, setSpTeamId]   = useState<number | "">("");
-  const [spPlayers, setSpPlayers] = useState<Player[]>([]);
-
+  // Restore current overlay state on mount
   useEffect(() => {
-    invoke<Team[]>("get_teams").then(setTeams).catch(() => {});
     invoke<{ scene: string; params: Record<string, string> }>("get_overlay_state")
       .then(({ scene, params: p }) => {
         const s = scene as SceneId;
@@ -246,53 +240,54 @@ export default function StreamerView() {
       .catch(() => {});
   }, []);
 
-  // When Lower Third team picker changes, load that team's players
+  // Auto-populate team names across scenes when shared match context changes
   useEffect(() => {
-    if (ltTeamId === "") { setLtPlayers([]); return; }
-    invoke<Player[]>("get_players", { teamId: ltTeamId }).then(setLtPlayers).catch(() => {});
-  }, [ltTeamId]);
+    setParams(prev => {
+      let p = { ...prev };
+      if (blueTeam) {
+        p = {
+          ...p,
+          "match-intro":   { ...p["match-intro"],   team1: blueTeam.name },
+          "break":         { ...p["break"],          team1: blueTeam.name },
+          "matchup-stats": { ...p["matchup-stats"],  team1: blueTeam.name },
+        };
+      }
+      if (redTeam) {
+        p = {
+          ...p,
+          "match-intro":   { ...p["match-intro"],   team2: redTeam.name },
+          "break":         { ...p["break"],          team2: redTeam.name },
+          "matchup-stats": { ...p["matchup-stats"],  team2: redTeam.name },
+        };
+      }
+      return p;
+    });
+  }, [blueTeam, redTeam]);
+
+  // Fetch & populate W-L record for match-intro
+  useEffect(() => {
+    if (!blueTeam) return;
+    invoke<TeamRecord>("get_team_record", { teamId: blueTeam.id })
+      .then(rec => setParams(prev => ({ ...prev, "match-intro": { ...prev["match-intro"], record1: `${rec.wins}W – ${rec.losses}L` } })))
+      .catch(() => {});
+  }, [blueTeam]);
 
   useEffect(() => {
-    if (psTeamId === "") { setPsPlayers([]); return; }
-    invoke<Player[]>("get_players", { teamId: psTeamId }).then(setPsPlayers).catch(() => {});
-    const team = teams.find(t => t.id === psTeamId);
+    if (!redTeam) return;
+    invoke<TeamRecord>("get_team_record", { teamId: redTeam.id })
+      .then(rec => setParams(prev => ({ ...prev, "match-intro": { ...prev["match-intro"], record2: `${rec.wins}W – ${rec.losses}L` } })))
+      .catch(() => {});
+  }, [redTeam]);
+
+  // Auto-populate player-stats team name when toggle or team changes
+  useEffect(() => {
+    const team = psTeam === "blue" ? blueTeam : redTeam;
     if (team) setParams(prev => ({ ...prev, "player-stats": { ...prev["player-stats"], teamName: team.name } }));
-  }, [psTeamId, teams]);
+  }, [psTeam, blueTeam, redTeam]);
 
-  useEffect(() => {
-    if (ms1TeamId === "") { setMs1Players([]); return; }
-    invoke<Player[]>("get_players", { teamId: ms1TeamId }).then(setMs1Players).catch(() => {});
-    const team = teams.find(t => t.id === ms1TeamId);
-    if (team) setParams(prev => ({ ...prev, "matchup-stats": { ...prev["matchup-stats"], team1: team.name } }));
-  }, [ms1TeamId, teams]);
-
-  useEffect(() => {
-    if (ms2TeamId === "") { setMs2Players([]); return; }
-    invoke<Player[]>("get_players", { teamId: ms2TeamId }).then(setMs2Players).catch(() => {});
-    const team = teams.find(t => t.id === ms2TeamId);
-    if (team) setParams(prev => ({ ...prev, "matchup-stats": { ...prev["matchup-stats"], team2: team.name } }));
-  }, [ms2TeamId, teams]);
-
-  useEffect(() => {
-    if (spTeamId === "") { setSpPlayers([]); return; }
-    invoke<Player[]>("get_players", { teamId: spTeamId }).then(setSpPlayers).catch(() => {});
-  }, [spTeamId]);
-
-  async function pickTeamWithRecord(sceneId: SceneId, teamKey: string, recordKey: string, teamId: number) {
-    const team = teams.find(t => t.id === teamId);
-    if (!team) return;
-    setParams(prev => ({ ...prev, [sceneId]: { ...prev[sceneId], [teamKey]: team.name } }));
-    try {
-      const rec = await invoke<TeamRecord>("get_team_record", { teamId });
-      setParams(prev => ({ ...prev, [sceneId]: { ...prev[sceneId], [recordKey]: `${rec.wins}W – ${rec.losses}L` } }));
-    } catch {}
-  }
-
-  function pickTeamName(sceneId: SceneId, teamKey: string, teamId: number) {
-    const team = teams.find(t => t.id === teamId);
-    if (!team) return;
-    setParams(prev => ({ ...prev, [sceneId]: { ...prev[sceneId], [teamKey]: team.name } }));
-  }
+  // Reset role picks when team changes
+  useEffect(() => { setMs1Picks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }, [blueTeam]);
+  useEffect(() => { setMs2Picks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }, [redTeam]);
 
   function fmtKda(k: number, d: number, a: number): string {
     return d === 0 ? "Perf" : ((k + a) / d).toFixed(2);
@@ -505,223 +500,201 @@ export default function StreamerView() {
         </div>
 
         <div className="params-form">
-          {/* ── Match Intro: team pickers ── */}
-          {selected === "match-intro" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Blue Side Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamWithRecord("match-intro", "team1", "record1", Number(e.target.value))}
-                >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              <label className="param-row">
-                <span className="param-label param-label--db">Red Side Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamWithRecord("match-intro", "team2", "record2", Number(e.target.value))}
-                >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-            </>
+          {/* ── Match Intro: auto-populated from match context; records shown for info ── */}
+          {selected === "match-intro" && (blueTeam || redTeam) && (
+            <div className="param-row param-row--info">
+              <span className="param-label">Match Context</span>
+              <span className="param-info">
+                {blueTeam?.name ?? "—"} vs {redTeam?.name ?? "—"}
+                <span className="param-hint"> — team names &amp; records auto-filled</span>
+              </span>
+            </div>
           )}
 
-          {/* ── Break: team pickers ── */}
-          {selected === "break" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Blue Side Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamName("break", "team1", Number(e.target.value))}
-                >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              <label className="param-row">
-                <span className="param-label param-label--db">Red Side Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamName("break", "team2", Number(e.target.value))}
-                >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-            </>
+          {/* ── Break: auto-populated from match context ── */}
+          {selected === "break" && (blueTeam || redTeam) && (
+            <div className="param-row param-row--info">
+              <span className="param-label">Match Context</span>
+              <span className="param-info">
+                {blueTeam?.name ?? "—"} vs {redTeam?.name ?? "—"}
+                <span className="param-hint"> — team names auto-filled</span>
+              </span>
+            </div>
           )}
 
-          {/* ── Match Result: team pickers ── */}
-          {selected === "match-result" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Winner Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamName("match-result", "winner", Number(e.target.value))}
+          {/* ── Match Result: quick-fill winner from match context ── */}
+          {selected === "match-result" && blueTeam && redTeam && (
+            <div className="param-row">
+              <span className="param-label param-label--db">Quick Fill</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="manual-obj-btn manual-obj-blue"
+                  onClick={() => setParams(prev => ({ ...prev, "match-result": {
+                    ...prev["match-result"],
+                    winner: blueTeam.name, loser: redTeam.name,
+                    winnerSide: "Blue Side", loserSide: "Red Side",
+                  }}))}
                 >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              <label className="param-row">
-                <span className="param-label param-label--db">Loser Team (DB)</span>
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value && pickTeamName("match-result", "loser", Number(e.target.value))}
+                  {blueTeam.name} Won
+                </button>
+                <button
+                  className="manual-obj-btn manual-obj-red"
+                  onClick={() => setParams(prev => ({ ...prev, "match-result": {
+                    ...prev["match-result"],
+                    winner: redTeam.name, loser: blueTeam.name,
+                    winnerSide: "Red Side", loserSide: "Blue Side",
+                  }}))}
                 >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-            </>
+                  {redTeam.name} Won
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* ── Lower Third: player picker ── */}
-          {selected === "lower-third" && teams.length > 0 && (
+          {/* ── Lower Third: player picker from shared teams ── */}
+          {selected === "lower-third" && (bluePlayers.length > 0 || redPlayers.length > 0) && (
+            <label className="param-row">
+              <span className="param-label param-label--db">Player (DB)</span>
+              <select
+                defaultValue=""
+                onChange={e => {
+                  const all = [...bluePlayers, ...redPlayers];
+                  const p = all.find(p => p.id === Number(e.target.value));
+                  if (p) pickPlayer(p);
+                }}
+              >
+                <option value="">— pick player —</option>
+                {blueTeam && bluePlayers.length > 0 && (
+                  <optgroup label={blueTeam.name}>
+                    {bluePlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                  </optgroup>
+                )}
+                {redTeam && redPlayers.length > 0 && (
+                  <optgroup label={redTeam.name}>
+                    {redPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+          )}
+
+          {/* ── Player Stats: team toggle + per-role pickers ── */}
+          {selected === "player-stats" && (bluePlayers.length > 0 || redPlayers.length > 0) && (() => {
+            const psPlayers = psTeam === "blue" ? bluePlayers : redPlayers;
+            return (
+              <>
+                <div className="param-row">
+                  <span className="param-label param-label--db">Team</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className={`manual-obj-btn ${psTeam === "blue" ? "manual-obj-blue" : "manual-obj-btn-inactive"}`}
+                      onClick={() => { setPsTeam("blue"); setPsRolePicks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }}
+                    >{blueTeam?.name ?? "Blue"}</button>
+                    <button
+                      className={`manual-obj-btn ${psTeam === "red" ? "manual-obj-red" : "manual-obj-btn-inactive"}`}
+                      onClick={() => { setPsTeam("red"); setPsRolePicks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }}
+                    >{redTeam?.name ?? "Red"}</button>
+                  </div>
+                </div>
+                {psPlayers.length > 0 && ROLE_KEYS.map(rk => (
+                  <label key={rk} className="param-row">
+                    <span className="param-label param-label--db">{ROLE_LABELS[rk]}</span>
+                    <select
+                      value={psRolePicks[rk]}
+                      onChange={e => {
+                        const id = Number(e.target.value);
+                        setPsRolePicks(prev => ({ ...prev, [rk]: id }));
+                        pickRolePlayer("player-stats", "", rk, id, psPlayers);
+                      }}
+                    >
+                      <option value="">— pick player —</option>
+                      {psPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </>
+            );
+          })()}
+
+          {/* ── Matchup Stats: role pickers from shared blue/red teams ── */}
+          {selected === "matchup-stats" && (
             <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Team (DB)</span>
-                <select
-                  value={ltTeamId}
-                  onChange={e => setLtTeamId(e.target.value === "" ? "" : Number(e.target.value))}
-                >
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              {ltPlayers.length > 0 && (
-                <label className="param-row">
-                  <span className="param-label param-label--db">Player (DB)</span>
-                  <select
-                    defaultValue=""
-                    onChange={e => {
-                      const p = ltPlayers.find(p => p.id === Number(e.target.value));
-                      if (p) pickPlayer(p);
-                    }}
-                  >
-                    <option value="">— pick player —</option>
-                    {ltPlayers.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.summonerName}{p.isStarter ? "" : " (sub)"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {bluePlayers.length > 0 && (
+                <>
+                  <div className="param-row param-row--info">
+                    <span className="param-label param-label--db">{blueTeam?.name ?? "Blue"}</span>
+                  </div>
+                  {ROLE_KEYS.map(rk => (
+                    <label key={"b-"+rk} className="param-row">
+                      <span className="param-label">{ROLE_LABELS[rk]}</span>
+                      <select
+                        value={ms1Picks[rk]}
+                        onChange={e => {
+                          const id = Number(e.target.value);
+                          setMs1Picks(prev => ({ ...prev, [rk]: id }));
+                          pickRolePlayer("matchup-stats", "b_", rk, id, bluePlayers);
+                        }}
+                      >
+                        <option value="">— pick player —</option>
+                        {bluePlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </>
+              )}
+              {redPlayers.length > 0 && (
+                <>
+                  <div className="param-row param-row--info">
+                    <span className="param-label param-label--db">{redTeam?.name ?? "Red"}</span>
+                  </div>
+                  {ROLE_KEYS.map(rk => (
+                    <label key={"r-"+rk} className="param-row">
+                      <span className="param-label">{ROLE_LABELS[rk]}</span>
+                      <select
+                        value={ms2Picks[rk]}
+                        onChange={e => {
+                          const id = Number(e.target.value);
+                          setMs2Picks(prev => ({ ...prev, [rk]: id }));
+                          pickRolePlayer("matchup-stats", "r_", rk, id, redPlayers);
+                        }}
+                      >
+                        <option value="">— pick player —</option>
+                        {redPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </>
+              )}
+              {bluePlayers.length === 0 && redPlayers.length === 0 && (
+                <div className="params-empty">Select teams in the Match context bar to load players.</div>
               )}
             </>
           )}
 
-          {/* ── Player Stats: team + per-role pickers ── */}
-          {selected === "player-stats" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Team (DB)</span>
-                <select value={psTeamId} onChange={e => setPsTeamId(e.target.value === "" ? "" : Number(e.target.value))}>
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              {psPlayers.length > 0 && ROLE_KEYS.map(rk => (
-                <label key={rk} className="param-row">
-                  <span className="param-label param-label--db">{ROLE_LABELS[rk]} Player (DB)</span>
-                  <select
-                    value={psRolePicks[rk]}
-                    onChange={e => {
-                      const id = Number(e.target.value);
-                      setPsRolePicks(prev => ({ ...prev, [rk]: id }));
-                      pickRolePlayer("player-stats", "", rk, id, psPlayers);
-                    }}
-                  >
-                    <option value="">— pick player —</option>
-                    {psPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
-                  </select>
-                </label>
-              ))}
-            </>
-          )}
-
-          {/* ── Matchup Stats: two team pickers + per-role pickers ── */}
-          {selected === "matchup-stats" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Blue Side Team (DB)</span>
-                <select value={ms1TeamId} onChange={e => setMs1TeamId(e.target.value === "" ? "" : Number(e.target.value))}>
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              {ms1Players.length > 0 && ROLE_KEYS.map(rk => (
-                <label key={"b-"+rk} className="param-row">
-                  <span className="param-label param-label--db">Blue {ROLE_LABELS[rk]} (DB)</span>
-                  <select
-                    value={ms1Picks[rk]}
-                    onChange={e => {
-                      const id = Number(e.target.value);
-                      setMs1Picks(prev => ({ ...prev, [rk]: id }));
-                      pickRolePlayer("matchup-stats", "b_", rk, id, ms1Players);
-                    }}
-                  >
-                    <option value="">— pick player —</option>
-                    {ms1Players.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
-                  </select>
-                </label>
-              ))}
-              <label className="param-row">
-                <span className="param-label param-label--db">Red Side Team (DB)</span>
-                <select value={ms2TeamId} onChange={e => setMs2TeamId(e.target.value === "" ? "" : Number(e.target.value))}>
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              {ms2Players.length > 0 && ROLE_KEYS.map(rk => (
-                <label key={"r-"+rk} className="param-row">
-                  <span className="param-label param-label--db">Red {ROLE_LABELS[rk]} (DB)</span>
-                  <select
-                    value={ms2Picks[rk]}
-                    onChange={e => {
-                      const id = Number(e.target.value);
-                      setMs2Picks(prev => ({ ...prev, [rk]: id }));
-                      pickRolePlayer("matchup-stats", "r_", rk, id, ms2Players);
-                    }}
-                  >
-                    <option value="">— pick player —</option>
-                    {ms2Players.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
-                  </select>
-                </label>
-              ))}
-            </>
-          )}
-
-          {/* ── Player Spotlight: team + player picker ── */}
-          {selected === "player-spotlight" && teams.length > 0 && (
-            <>
-              <label className="param-row">
-                <span className="param-label param-label--db">Team (DB)</span>
-                <select value={spTeamId} onChange={e => setSpTeamId(e.target.value === "" ? "" : Number(e.target.value))}>
-                  <option value="">— pick team —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              {spPlayers.length > 0 && (
-                <label className="param-row">
-                  <span className="param-label param-label--db">Player (DB)</span>
-                  <select
-                    defaultValue=""
-                    onChange={e => { if (e.target.value) pickSpotlightPlayer(Number(e.target.value), spPlayers); }}
-                  >
-                    <option value="">— pick player —</option>
-                    {spPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
-                  </select>
-                </label>
-              )}
-            </>
+          {/* ── Player Spotlight: picker from shared teams ── */}
+          {selected === "player-spotlight" && (bluePlayers.length > 0 || redPlayers.length > 0) && (
+            <label className="param-row">
+              <span className="param-label param-label--db">Player (DB)</span>
+              <select
+                defaultValue=""
+                onChange={e => {
+                  const all = [...bluePlayers, ...redPlayers];
+                  if (e.target.value) pickSpotlightPlayer(Number(e.target.value), all);
+                }}
+              >
+                <option value="">— pick player —</option>
+                {blueTeam && bluePlayers.length > 0 && (
+                  <optgroup label={blueTeam.name}>
+                    {bluePlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                  </optgroup>
+                )}
+                {redTeam && redPlayers.length > 0 && (
+                  <optgroup label={redTeam.name}>
+                    {redPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}{p.isStarter ? "" : " (sub)"}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </label>
           )}
 
           {/* ── Standard params ── */}

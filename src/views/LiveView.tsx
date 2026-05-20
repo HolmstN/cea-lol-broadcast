@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import type { Player } from "../types";
+import type { Team, Player } from "../types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,15 +124,19 @@ function buildObjectiveParams(objs: ObjectiveEvent[]): Record<string, string> {
     grub_red:       String(ofType(redO,  "VoidGrub").length),
     tower_blue:     String(ofType(blueO, "Tower").length),
     tower_red:      String(ofType(redO,  "Tower").length),
-    _dbg_obj_total: String(objs.length),
-    _dbg_dragon_ct: String(dragons.length),
-    _dbg_obj_types: objs.map(o => `${o.event_type}:${o.name}`).join("|"),
   };
 }
 
+const DRAGON_TYPES = ["Infernal", "Mountain", "Ocean", "Cloud", "Hextech", "Chemtech", "Elder"] as const;
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LiveView() {
+interface LiveViewProps {
+  blueTeam: Team | null;
+  redTeam: Team | null;
+}
+
+export default function LiveView({ blueTeam, redTeam }: LiveViewProps) {
   // LCU
   const [lcuStatus, setLcuStatus] = useState<LcuStatus>("idle");
   const [lcuError, setLcuError]   = useState<string | null>(null);
@@ -162,8 +166,7 @@ export default function LiveView() {
 
   // Live HUD
   const [hudActive, setHudActive] = useState(false);
-  const [hudTeam1, setHudTeam1]   = useState("Blue");
-  const [hudTeam2, setHudTeam2]   = useState("Red");
+  const [dragonType, setDragonType] = useState<typeof DRAGON_TYPES[number]>("Infernal");
   const hudActiveRef   = useRef(false);
   const hudParamsRef   = useRef<Record<string, string>>({});
   const hudTeam1Ref    = useRef("Blue");
@@ -185,8 +188,8 @@ export default function LiveView() {
   // Sync refs
   useEffect(() => { autoOverlayRef.current = autoOverlay; }, [autoOverlay]);
   useEffect(() => { hudActiveRef.current = hudActive; }, [hudActive]);
-  useEffect(() => { hudTeam1Ref.current = hudTeam1; }, [hudTeam1]);
-  useEffect(() => { hudTeam2Ref.current = hudTeam2; }, [hudTeam2]);
+  useEffect(() => { hudTeam1Ref.current = blueTeam?.name ?? "Blue"; }, [blueTeam]);
+  useEffect(() => { hudTeam2Ref.current = redTeam?.name  ?? "Red";  }, [redTeam]);
   useEffect(() => { objectivesRef.current = objectives; }, [objectives]);
 
   useEffect(() => {
@@ -301,7 +304,6 @@ export default function LiveView() {
         invoke("seek_replay", { time: returnTo }).catch(() => {});
       }
 
-      console.log("[live-tick] objs:", objectivesRef.current.length, objectivesRef.current.map(o => o.event_type + ":" + o.name));
       if (hudActiveRef.current && !displayingRef.current) {
         const hp = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current) };
         hudParamsRef.current = hp;
@@ -318,13 +320,8 @@ export default function LiveView() {
     }));
 
     unlistens.push(await listen<ObjectiveEvent>("live-objective", (e) => {
-      console.log("[live-objective]", e.payload);
       objectivesRef.current = [...objectivesRef.current, e.payload];
       setObjectives(prev => [...prev, e.payload]);
-    }));
-
-    unlistens.push(await listen<string>("live-debug-event", (e) => {
-      console.log("[live-debug-event]", e.payload);
     }));
 
     unlistens.push(await listen("live-not-found", () => {
@@ -412,6 +409,17 @@ export default function LiveView() {
   }
   function deleteClip(id: number) { setClips(prev => prev.filter(c => c.id !== id)); }
 
+  // ── Manual objectives ────────────────────────────────────────────────────────
+  function addObjective(obj: Omit<ObjectiveEvent, "game_time">) {
+    const full: ObjectiveEvent = { ...obj, game_time: gameTimeRef.current };
+    objectivesRef.current = [...objectivesRef.current, full];
+    setObjectives(prev => [...prev, full]);
+  }
+  function undoLastObjective() {
+    objectivesRef.current = objectivesRef.current.slice(0, -1);
+    setObjectives(prev => prev.slice(0, -1));
+  }
+
   // ── EOG ──────────────────────────────────────────────────────────────────────
   function updateRow(idx: number, patch: Partial<MatchedPlayer>) {
     setEogModal(prev => prev ? prev.map((r, i) => i === idx ? { ...r, ...patch } : r) : null);
@@ -436,6 +444,9 @@ export default function LiveView() {
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
+  const team1Name = blueTeam?.name ?? "Blue";
+  const team2Name = redTeam?.name  ?? "Red";
+
   const champImgUrl = (name: string) => {
     const key = champMap[name.toLowerCase()] ?? name.replace(/[\s'\.&]/g, "");
     return `${DDRAGON}/img/champion/${key}.png`;
@@ -484,9 +495,9 @@ export default function LiveView() {
   const showBaron      = isInGame && (gameTime >= 900 || lastBaron !== undefined);
 
   const objRows = [
-    { label: hudTeam1 || "Blue", side: "ORDER", cls: "live-obj-row-blue",
+    { label: team1Name, side: "ORDER", cls: "live-obj-row-blue",
       dragons: blueDragons, barons: blueBarons, heralds: blueHeralds, towers: blueTowers, inhibs: blueInhibs },
-    { label: hudTeam2 || "Red",  side: "CHAOS", cls: "live-obj-row-red",
+    { label: team2Name, side: "CHAOS", cls: "live-obj-row-red",
       dragons: redDragons,  barons: redBarons,  heralds: redHeralds,  towers: redTowers,  inhibs: redInhibs  },
   ];
 
@@ -568,19 +579,13 @@ export default function LiveView() {
         {/* HUD control */}
         <div className="hud-toolbar">
           <span className="hud-label">Live HUD</span>
-          <input
-            className="hud-team-input"
-            value={hudTeam1} onChange={e => setHudTeam1(e.target.value)}
-            placeholder="Blue team name"
-            disabled={hudActive}
-          />
+          <span className={`hud-team-name hud-team-name-blue${!blueTeam ? " hud-team-name-placeholder" : ""}`}>
+            {team1Name}
+          </span>
           <span className="hud-vs">vs</span>
-          <input
-            className="hud-team-input"
-            value={hudTeam2} onChange={e => setHudTeam2(e.target.value)}
-            placeholder="Red team name"
-            disabled={hudActive}
-          />
+          <span className={`hud-team-name hud-team-name-red${!redTeam ? " hud-team-name-placeholder" : ""}`}>
+            {team2Name}
+          </span>
           {!hudActive
             ? <button className="hud-enable-btn" disabled={!isInGame} onClick={enableHud}>Enable HUD</button>
             : <button className="hud-disable-btn" onClick={disableHud}>Disable HUD</button>
@@ -588,12 +593,51 @@ export default function LiveView() {
           {hudActive && <span className="hud-live-badge">LIVE</span>}
         </div>
 
+        {/* Manual objective input — for spectator/broadcast use */}
+        {isTracking && (
+          <div className="manual-obj-bar">
+            <span className="manual-obj-label">Add:</span>
+            <span className="manual-obj-group">
+              <span className="manual-obj-sublabel">Dragon</span>
+              <select
+                className="manual-obj-select"
+                value={dragonType}
+                onChange={e => setDragonType(e.target.value as typeof DRAGON_TYPES[number])}
+              >
+                {DRAGON_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <button className="manual-obj-btn manual-obj-blue" onClick={() => addObjective({ event_type: "Dragon", team: "ORDER", name: dragonType, stolen: false })}>{team1Name || "B"}</button>
+              <button className="manual-obj-btn manual-obj-red"  onClick={() => addObjective({ event_type: "Dragon", team: "CHAOS", name: dragonType, stolen: false })}>{team2Name || "R"}</button>
+            </span>
+            <span className="manual-obj-group">
+              <span className="manual-obj-sublabel">Baron</span>
+              <button className="manual-obj-btn manual-obj-blue" onClick={() => addObjective({ event_type: "Baron", team: "ORDER", name: "Baron", stolen: false })}>{team1Name || "B"}</button>
+              <button className="manual-obj-btn manual-obj-red"  onClick={() => addObjective({ event_type: "Baron", team: "CHAOS", name: "Baron", stolen: false })}>{team2Name || "R"}</button>
+            </span>
+            <span className="manual-obj-group">
+              <span className="manual-obj-sublabel">Herald</span>
+              <button className="manual-obj-btn manual-obj-blue" onClick={() => addObjective({ event_type: "Herald", team: "ORDER", name: "Herald", stolen: false })}>{team1Name || "B"}</button>
+              <button className="manual-obj-btn manual-obj-red"  onClick={() => addObjective({ event_type: "Herald", team: "CHAOS", name: "Herald", stolen: false })}>{team2Name || "R"}</button>
+            </span>
+            <span className="manual-obj-group">
+              <span className="manual-obj-sublabel">Grub</span>
+              <button className="manual-obj-btn manual-obj-blue" onClick={() => addObjective({ event_type: "VoidGrub", team: "ORDER", name: "VoidGrub", stolen: false })}>{team1Name || "B"}</button>
+              <button className="manual-obj-btn manual-obj-red"  onClick={() => addObjective({ event_type: "VoidGrub", team: "CHAOS", name: "VoidGrub", stolen: false })}>{team2Name || "R"}</button>
+            </span>
+            {objectives.length > 0 && (
+              <span className="manual-obj-group">
+                <button className="manual-obj-btn manual-obj-undo" onClick={undoLastObjective}>↩ Undo</button>
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Gold graph */}
         {isInGame && (
           <div className="live-gold-section">
             <div className="live-gold-labels">
               <span className="live-gold-label-blue">
-                {hudTeam1 || "Blue"}&nbsp;
+                {team1Name}&nbsp;
                 <span className="live-gold-amount">{fmtGold(blueGold)}g</span>
               </span>
               <span className="live-gold-diff-badge">
@@ -605,7 +649,7 @@ export default function LiveView() {
               </span>
               <span className="live-gold-label-red">
                 <span className="live-gold-amount">{fmtGold(redGold)}g</span>&nbsp;
-                {hudTeam2 || "Red"}
+                {team2Name}
               </span>
             </div>
             <div className="live-gold-bar-wrap">
@@ -677,7 +721,7 @@ export default function LiveView() {
           <div className="live-game-state">
             <div className="live-team-col live-team-blue">
               <div className="live-team-header">
-                {hudTeam1 || "Blue"} (ORDER) &nbsp;·&nbsp; <span className="live-team-gold">{fmtGold(blueGold)}g</span>
+                {team1Name} (ORDER) &nbsp;·&nbsp; <span className="live-team-gold">{fmtGold(blueGold)}g</span>
               </div>
               {blue.map(p => (
                 <div key={p.name} className="live-player-row">
@@ -698,7 +742,7 @@ export default function LiveView() {
             </div>
             <div className="live-team-col live-team-red">
               <div className="live-team-header">
-                {hudTeam2 || "Red"} (CHAOS) &nbsp;·&nbsp; <span className="live-team-gold">{fmtGold(redGold)}g</span>
+                {team2Name} (CHAOS) &nbsp;·&nbsp; <span className="live-team-gold">{fmtGold(redGold)}g</span>
               </div>
               {red.map(p => (
                 <div key={p.name} className="live-player-row">

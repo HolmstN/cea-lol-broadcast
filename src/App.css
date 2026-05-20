@@ -1721,3 +1721,134 @@ textarea { resize: vertical; }
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.6; }
 }
+
+/* ── Match context bar (shared team selector in header) ──────────────────── */
+.match-ctx-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.match-ctx-label {
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.match-ctx-vs {
+  font-size: 11px;
+  color: #444;
+  flex-shrink: 0;
+}
+.match-ctx-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #e0e0e0;
+  outline: none;
+  min-width: 130px;
+}
+.match-ctx-select:focus { border-color: #555; }
+.match-ctx-blue { background: #0c1a2e; border-color: #1e3a5a; }
+.match-ctx-blue:focus { border-color: #3a70a0; }
+.match-ctx-red  { background: #2a0d0d; border-color: #5a1a1a; }
+.match-ctx-red:focus  { border-color: #a03030; }
+
+/* ── HUD team name display (replacing inputs) ────────────────────────────── */
+.hud-team-name {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.hud-team-name-blue {
+  background: #0c1a2e;
+  color: #64b5f6;
+  border-color: #1e3a5a;
+}
+.hud-team-name-red {
+  background: #2a0d0d;
+  color: #ef9a9a;
+  border-color: #5a1a1a;
+}
+.hud-team-name-placeholder { color: #444; font-style: italic; font-weight: 400; }
+
+/* ── Manual objective input bar ──────────────────────────────────────────── */
+.manual-obj-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 20px;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1e1e1e;
+  flex-wrap: wrap;
+}
+.manual-obj-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  white-space: nowrap;
+}
+.manual-obj-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.manual-obj-sublabel {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+}
+.manual-obj-select {
+  padding: 2px 6px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  color: #ccc;
+  font-size: 11px;
+  outline: none;
+}
+.manual-obj-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.manual-obj-blue { background: #1565c0; color: #fff; }
+.manual-obj-blue:hover { background: #1976d2; }
+.manual-obj-red  { background: #b71c1c; color: #fff; }
+.manual-obj-red:hover  { background: #c62828; }
+.manual-obj-undo { background: #1e1e1e; color: #aaa; border: 1px solid #333; }
+.manual-obj-undo:hover { background: #2a2a2a; }
+.manual-obj-btn-inactive {
+  background: #1e1e1e;
+  color: #666;
+  border: 1px solid #2a2a2a;
+}
+.manual-obj-btn-inactive:hover { background: #252525; color: #aaa; }
+
+/* ── Streamer: info param row ────────────────────────────────────────────── */
+.param-row--info {
+  background: #111;
+  border-radius: 4px;
+  padding: 5px 8px;
+  border: 1px solid #222;
+}
+.param-info {
+  font-size: 12px;
+  color: #aaa;
+}
+.param-info .param-hint { color: #555; }
