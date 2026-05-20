@@ -542,6 +542,7 @@ textarea { resize: vertical; }
 .scene-preview {
   width: 100%;
   aspect-ratio: 16 / 9;
+  max-height: 200px;
   position: relative;
   overflow: hidden;
   background: #010a13;
@@ -1721,6 +1722,57 @@ textarea { resize: vertical; }
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.6; }
 }
+
+/* ── Match players bar (role assignments, below header) ──────────────────── */
+.match-players-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 20px;
+  background: #080808;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+.match-players-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.match-players-team {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 90px;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.match-players-blue .match-players-team { color: #64b5f6; }
+.match-players-red  .match-players-team { color: #ef9a9a; }
+.match-players-role {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.match-players-role-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #444;
+  white-space: nowrap;
+}
+.match-players-select {
+  padding: 1px 4px;
+  font-size: 11px;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 3px;
+  color: #ccc;
+  max-width: 130px;
+  outline: none;
+}
+.match-players-select:focus { border-color: #444; }
 
 /* ── Match context bar (shared team selector in header) ──────────────────── */
 .match-ctx-bar {

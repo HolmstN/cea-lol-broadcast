@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Team, Player, TeamRecord, PlayerExtendedStats, ChampionStat } from "../types";
+import type { Team, Player, TeamRecord, PlayerExtendedStats, ChampionStat, RoleKey } from "../types";
+import { ROLE_KEYS } from "../types";
 
 interface StreamerViewProps {
   blueTeam: Team | null;
   redTeam:  Team | null;
   bluePlayers: Player[];
   redPlayers:  Player[];
+  blueRoles: Record<RoleKey, number | "">;
+  redRoles:  Record<RoleKey, number | "">;
   teams: Team[];
 }
 
@@ -31,8 +34,6 @@ interface SceneDef {
   params: Record<string, ParamDef>;
 }
 
-type RoleKey = "top" | "jg" | "mid" | "adc" | "sup";
-const ROLE_KEYS: RoleKey[] = ["top", "jg", "mid", "adc", "sup"];
 const ROLE_LABELS: Record<RoleKey, string> = { top: "Top", jg: "Jungle", mid: "Mid", adc: "ADC", sup: "Support" };
 
 function makeRoleParams(prefix: string): Record<string, ParamDef> {
@@ -210,7 +211,7 @@ function defaultParams(): AllParams {
   return result;
 }
 
-export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayers, teams }: StreamerViewProps) {
+export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayers, blueRoles, redRoles, teams }: StreamerViewProps) {
   const [liveScene, setLiveScene] = useState<SceneId>("idle");
   const [selected, setSelected]   = useState<SceneId>("idle");
   const [params, setParams]       = useState<AllParams>(defaultParams);
@@ -288,6 +289,45 @@ export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayer
   // Reset role picks when team changes
   useEffect(() => { setMs1Picks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }, [blueTeam]);
   useEffect(() => { setMs2Picks({ top: "", jg: "", mid: "", adc: "", sup: "" }); }, [redTeam]);
+
+  // Auto-populate matchup-stats from global role assignments
+  useEffect(() => {
+    for (const rk of ROLE_KEYS) {
+      const id = blueRoles[rk];
+      if (id !== "") {
+        setMs1Picks(prev => ({ ...prev, [rk]: id }));
+        pickRolePlayer("matchup-stats", "b_", rk, id, bluePlayers);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blueRoles, bluePlayers]);
+
+  useEffect(() => {
+    for (const rk of ROLE_KEYS) {
+      const id = redRoles[rk];
+      if (id !== "") {
+        setMs2Picks(prev => ({ ...prev, [rk]: id }));
+        pickRolePlayer("matchup-stats", "r_", rk, id, redPlayers);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redRoles, redPlayers]);
+
+  // Auto-populate player-stats from global role assignments when team or roles change
+  useEffect(() => {
+    const roles   = psTeam === "blue" ? blueRoles : redRoles;
+    const players = psTeam === "blue" ? bluePlayers : redPlayers;
+    const picks: Record<RoleKey, number | ""> = { top: "", jg: "", mid: "", adc: "", sup: "" };
+    for (const rk of ROLE_KEYS) {
+      const id = roles[rk];
+      if (id !== "") {
+        picks[rk] = id;
+        pickRolePlayer("player-stats", "", rk, id, players);
+      }
+    }
+    setPsRolePicks(picks);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [psTeam, blueRoles, redRoles, bluePlayers, redPlayers]);
 
   function fmtKda(k: number, d: number, a: number): string {
     return d === 0 ? "Perf" : ((k + a) / d).toFixed(2);

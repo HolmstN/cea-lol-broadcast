@@ -26,6 +26,9 @@ export interface TournamentStats {
 export const ROLES = ["Top", "Jungle", "Mid", "ADC", "Support"] as const;
 export type Role = typeof ROLES[number];
 
+export type RoleKey = "top" | "jg" | "mid" | "adc" | "sup";
+export const ROLE_KEYS: RoleKey[] = ["top", "jg", "mid", "adc", "sup"];
+
 export interface TeamRecord {
   wins: number;
   losses: number;

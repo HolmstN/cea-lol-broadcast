@@ -5,8 +5,12 @@ import TeamsView from "./views/TeamsView";
 import StreamerView from "./views/StreamerView";
 import StatsView from "./views/StatsView";
 import MatchView from "./views/MatchView";
-import type { Team, Player } from "./types";
+import type { Team, Player, RoleKey } from "./types";
+import { ROLE_KEYS } from "./types";
 import "./App.css";
+
+const EMPTY_ROLES: Record<RoleKey, number | ""> = { top: "", jg: "", mid: "", adc: "", sup: "" };
+const ROLE_LABELS_SHORT: Record<RoleKey, string> = { top: "Top", jg: "Jg", mid: "Mid", adc: "ADC", sup: "Sup" };
 
 type Tab = "live" | "teams" | "stats" | "match" | "streamer";
 
@@ -19,6 +23,8 @@ export default function App() {
   const [redTeamId, setRedTeamId]   = useState<number | "">("");
   const [bluePlayers, setBluePlayers] = useState<Player[]>([]);
   const [redPlayers, setRedPlayers]   = useState<Player[]>([]);
+  const [blueRoles, setBlueRoles]   = useState<Record<RoleKey, number | "">>(EMPTY_ROLES);
+  const [redRoles,  setRedRoles]    = useState<Record<RoleKey, number | "">>(EMPTY_ROLES);
 
   useEffect(() => {
     invoke<Team[]>("get_teams").then(setTeams).catch(() => {});
@@ -27,11 +33,13 @@ export default function App() {
   useEffect(() => {
     if (blueTeamId === "") { setBluePlayers([]); return; }
     invoke<Player[]>("get_players", { teamId: blueTeamId }).then(setBluePlayers).catch(() => {});
+    setBlueRoles(EMPTY_ROLES);
   }, [blueTeamId]);
 
   useEffect(() => {
     if (redTeamId === "") { setRedPlayers([]); return; }
     invoke<Player[]>("get_players", { teamId: redTeamId }).then(setRedPlayers).catch(() => {});
+    setRedRoles(EMPTY_ROLES);
   }, [redTeamId]);
 
   const blueTeam = teams.find(t => t.id === blueTeamId) ?? null;
@@ -75,6 +83,48 @@ export default function App() {
         )}
       </header>
 
+      {/* Match players — role assignments, visible below header on Live/Streamer tabs */}
+      {showCtx && (bluePlayers.length > 0 || redPlayers.length > 0) && (
+        <div className="match-players-bar">
+          {bluePlayers.length > 0 && (
+            <div className="match-players-row match-players-blue">
+              <span className="match-players-team">{blueTeam?.name ?? "Blue"}</span>
+              {ROLE_KEYS.map(rk => (
+                <label key={rk} className="match-players-role">
+                  <span className="match-players-role-label">{ROLE_LABELS_SHORT[rk]}</span>
+                  <select
+                    className="match-players-select"
+                    value={blueRoles[rk]}
+                    onChange={e => setBlueRoles(prev => ({ ...prev, [rk]: e.target.value === "" ? "" : Number(e.target.value) }))}
+                  >
+                    <option value="">—</option>
+                    {bluePlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
+          {redPlayers.length > 0 && (
+            <div className="match-players-row match-players-red">
+              <span className="match-players-team">{redTeam?.name ?? "Red"}</span>
+              {ROLE_KEYS.map(rk => (
+                <label key={rk} className="match-players-role">
+                  <span className="match-players-role-label">{ROLE_LABELS_SHORT[rk]}</span>
+                  <select
+                    className="match-players-select"
+                    value={redRoles[rk]}
+                    onChange={e => setRedRoles(prev => ({ ...prev, [rk]: e.target.value === "" ? "" : Number(e.target.value) }))}
+                  >
+                    <option value="">—</option>
+                    {redPlayers.map(p => <option key={p.id} value={p.id}>{p.summonerName}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="view">
         {tab === "live"     && <LiveView blueTeam={blueTeam} redTeam={redTeam} />}
         {tab === "teams"    && <TeamsView />}
@@ -84,6 +134,7 @@ export default function App() {
           <StreamerView
             blueTeam={blueTeam} redTeam={redTeam}
             bluePlayers={bluePlayers} redPlayers={redPlayers}
+            blueRoles={blueRoles} redRoles={redRoles}
             teams={teams}
           />
         )}
