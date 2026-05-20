@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n tauri,overlay -c blue,green \"tauri dev\" \"npm --prefix overlay-src run dev\"",
+    "dev": "concurrently -n main,overlay -c blue,green \"vite\" \"npm --prefix overlay-src run dev\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

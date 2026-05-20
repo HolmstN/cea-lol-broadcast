@@ -60,14 +60,14 @@ function badgeClass(b: string) {
 
 function dragonInfo(name: string): { abbr: string; color: string } {
   const n = name.toLowerCase();
-  if (n.includes("infernal"))  return { abbr: "IF", color: "#ef5350" };
-  if (n.includes("mountain"))  return { abbr: "MT", color: "#a1887f" };
-  if (n.includes("ocean"))     return { abbr: "OC", color: "#42a5f5" };
-  if (n.includes("cloud"))     return { abbr: "CL", color: "#90a4ae" };
-  if (n.includes("hextech"))   return { abbr: "HX", color: "#ab47bc" };
-  if (n.includes("chemtech"))  return { abbr: "CH", color: "#66bb6a" };
-  if (n.includes("elder"))     return { abbr: "EL", color: "#ffca28" };
-  return { abbr: name.slice(0, 2).toUpperCase() || "DR", color: "#888" };
+  if (n === "fire"  || n.includes("infernal"))  return { abbr: "IF", color: "#ef5350" };
+  if (n === "earth" || n.includes("mountain"))  return { abbr: "MT", color: "#a1887f" };
+  if (n === "water" || n.includes("ocean"))     return { abbr: "OC", color: "#42a5f5" };
+  if (n === "air"   || n.includes("cloud"))     return { abbr: "CL", color: "#90a4ae" };
+  if (n.includes("hextech"))                    return { abbr: "HX", color: "#ab47bc" };
+  if (n.includes("chemtech"))                   return { abbr: "CH", color: "#66bb6a" };
+  if (n.includes("elder"))                      return { abbr: "EL", color: "#ffca28" };
+  return { abbr: name.slice(0, 2).toUpperCase() || "DR", color: "#888888" };
 }
 
 const DDRAGON = 'https://ddragon.leagueoflegends.com/cdn/16.10.1';
@@ -81,6 +81,7 @@ function fmtCountdown(secs: number) {
 function buildHudParams(t: LiveTickPayload, team1: string, team2: string): Record<string, string> {
   const params: Record<string, string> = {
     timer:      fmtTime(t.game_time),
+    game_time:  String(t.game_time),
     team1, team2,
     blue_kills: String(t.blue_kills),
     red_kills:  String(t.red_kills),
@@ -102,7 +103,7 @@ function buildHudParams(t: LiveTickPayload, team1: string, team2: string): Recor
   return params;
 }
 
-function buildObjectiveParams(objs: ObjectiveEvent[], gt: number): Record<string, string> {
+function buildObjectiveParams(objs: ObjectiveEvent[]): Record<string, string> {
   const byTeam = (team: string) => objs.filter(o => o.team === team);
   const ofType = (arr: ObjectiveEvent[], type: string) => arr.filter(o => o.event_type === type);
   const dragons = objs.filter(o => o.event_type === "Dragon").sort((a, b) => a.game_time - b.game_time);
@@ -116,13 +117,16 @@ function buildObjectiveParams(objs: ObjectiveEvent[], gt: number): Record<string
   const blueO = byTeam("ORDER");
   const redO  = byTeam("CHAOS");
   return {
-    dragon_names: dragons.map(d => d.name).join(","),
-    dragon_timer: fmtCountdown(nextDragonAt - gt),
-    baron_timer:  (gt >= 900 || lastBaron !== undefined) ? fmtCountdown(nextBaronAt - gt) : "",
-    grub_blue:    String(ofType(blueO, "VoidGrub").length),
-    grub_red:     String(ofType(redO,  "VoidGrub").length),
-    tower_blue:   String(ofType(blueO, "Tower").length),
-    tower_red:    String(ofType(redO,  "Tower").length),
+    dragon_names:   dragons.map(d => d.name).join(","),
+    next_dragon_at: String(nextDragonAt),
+    next_baron_at:  String(nextBaronAt),
+    grub_blue:      String(ofType(blueO, "VoidGrub").length),
+    grub_red:       String(ofType(redO,  "VoidGrub").length),
+    tower_blue:     String(ofType(blueO, "Tower").length),
+    tower_red:      String(ofType(redO,  "Tower").length),
+    _dbg_obj_total: String(objs.length),
+    _dbg_dragon_ct: String(dragons.length),
+    _dbg_obj_types: objs.map(o => `${o.event_type}:${o.name}`).join("|"),
   };
 }
 
@@ -297,12 +301,13 @@ export default function LiveView() {
         invoke("seek_replay", { time: returnTo }).catch(() => {});
       }
 
+      console.log("[live-tick] objs:", objectivesRef.current.length, objectivesRef.current.map(o => o.event_type + ":" + o.name));
       if (hudActiveRef.current && !displayingRef.current) {
-        const hp = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current, t.game_time) };
+        const hp = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current) };
         hudParamsRef.current = hp;
         invoke("set_overlay_scene", { scene: "live-hud", params: hp }).catch(() => {});
       } else if (hudActiveRef.current) {
-        hudParamsRef.current = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current, t.game_time) };
+        hudParamsRef.current = { ...buildHudParams(t, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectivesRef.current) };
       }
     }));
 
@@ -313,7 +318,13 @@ export default function LiveView() {
     }));
 
     unlistens.push(await listen<ObjectiveEvent>("live-objective", (e) => {
+      console.log("[live-objective]", e.payload);
+      objectivesRef.current = [...objectivesRef.current, e.payload];
       setObjectives(prev => [...prev, e.payload]);
+    }));
+
+    unlistens.push(await listen<string>("live-debug-event", (e) => {
+      console.log("[live-debug-event]", e.payload);
     }));
 
     unlistens.push(await listen("live-not-found", () => {
@@ -360,7 +371,7 @@ export default function LiveView() {
     setHudActive(true);
     if (players.length > 0) {
       const tick: LiveTickPayload = { game_time: gameTime, blue_kills: blueKills, red_kills: redKills, blue_gold: blueGold, red_gold: redGold, players };
-      const hp = { ...buildHudParams(tick, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectives, gameTime) };
+      const hp = { ...buildHudParams(tick, hudTeam1Ref.current, hudTeam2Ref.current), ...buildObjectiveParams(objectives) };
       hudParamsRef.current = hp;
       invoke("set_overlay_scene", { scene: "live-hud", params: hp }).catch(() => {});
     }

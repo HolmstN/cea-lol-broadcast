@@ -76,6 +76,8 @@ struct GameEvent {
     event_id: u32,
     #[serde(rename = "EventName")]
     event_name: String,
+    #[serde(rename = "EventTime", default)]
+    event_time: f64,
     #[serde(rename = "KillerName", default)]
     killer_name: String,
     #[serde(rename = "VictimName", default)]
@@ -287,12 +289,9 @@ impl LiveClientPoller {
                                     next_event_id.store(max_id + 1, Ordering::Relaxed);
                                 }
 
-                                if !initialized {
-                                    // Skip all historic events on first tick
-                                    initialized = true;
-                                    sleep(Duration::from_secs(2)).await;
-                                    continue;
-                                }
+                                // On first tick: replay historic objectives but skip kills.
+                                let is_first = !initialized;
+                                initialized = true;
 
                                 // Find first-blood recipient for badge override
                                 let fb_recipient = data
@@ -305,7 +304,7 @@ impl LiveClientPoller {
                                 let mut game_ended = false;
                                 for ev in &data.events.events {
                                     match ev.event_name.as_str() {
-                                        "ChampionKill" => {
+                                        "ChampionKill" if !is_first => {
                                             let is_fb = fb_recipient
                                                 .as_deref()
                                                 .map(|r| r == ev.killer_name.to_lowercase())
@@ -332,7 +331,7 @@ impl LiveClientPoller {
                                                 },
                                             );
                                         }
-                                        "Multikill" => {
+                                        "Multikill" if !is_first => {
                                             let badge = match ev.kill_streak {
                                                 2 => "Double Kill",
                                                 3 => "Triple Kill",
@@ -355,7 +354,7 @@ impl LiveClientPoller {
                                                 },
                                             );
                                         }
-                                        "Ace" => {
+                                        "Ace" if !is_first => {
                                             let killer_champ = champ_map
                                                 .get(&ev.acer.to_lowercase())
                                                 .cloned()
@@ -374,12 +373,13 @@ impl LiveClientPoller {
                                         }
                                         "DragonKill" => {
                                             let team = team_map.get(&ev.killer_name.to_lowercase()).cloned().unwrap_or_default();
+                                            let name = if ev.dragon_type.is_empty() { "Dragon".to_string() } else { ev.dragon_type.clone() };
                                             let _ = app.emit("live-objective", ObjectiveEvent {
                                                 event_type: "Dragon".into(),
                                                 team,
-                                                name: ev.dragon_type.clone(),
+                                                name,
                                                 stolen: ev.stolen.eq_ignore_ascii_case("true"),
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "BaronKill" => {
@@ -389,7 +389,7 @@ impl LiveClientPoller {
                                                 team,
                                                 name: "Baron".into(),
                                                 stolen: ev.stolen.eq_ignore_ascii_case("true"),
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "HeraldKill" => {
@@ -399,7 +399,7 @@ impl LiveClientPoller {
                                                 team,
                                                 name: "Herald".into(),
                                                 stolen: ev.stolen.eq_ignore_ascii_case("true"),
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "VoidGrubKill" | "VoidMonsterKill" => {
@@ -409,7 +409,7 @@ impl LiveClientPoller {
                                                 team,
                                                 name: "VoidGrub".into(),
                                                 stolen: false,
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "TurretKilled" => {
@@ -419,7 +419,7 @@ impl LiveClientPoller {
                                                 team,
                                                 name: ev.victim_name.clone(),
                                                 stolen: false,
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "InhibKilled" => {
@@ -429,13 +429,16 @@ impl LiveClientPoller {
                                                 team,
                                                 name: ev.victim_name.clone(),
                                                 stolen: false,
-                                                game_time: data.game_data.game_time,
+                                                game_time: ev.event_time,
                                             });
                                         }
                                         "GameEnd" => {
                                             game_ended = true;
                                         }
-                                        _ => {}
+                                        other => {
+                                            // Emit unknown event names for debugging
+                                            let _ = app.emit("live-debug-event", other.to_string());
+                                        }
                                     }
                                 }
 
