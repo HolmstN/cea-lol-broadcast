@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:lcu.vivide.re)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(cargo build *)",
+      "WebFetch(domain:api.app.playcea.com)",
+      "Bash(Write-Output \"checking directory\")",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(python -c \"from PIL import Image; print\\('PIL ok'\\)\")",
+      "Bash(npx tauri *)"
+    ]
+  }
+}

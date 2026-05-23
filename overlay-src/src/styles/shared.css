@@ -26,6 +26,11 @@
   }
 }
 
+/* When a custom background image is set, make scene root backgrounds semi-transparent */
+.has-custom-bg .bg-lol-bg {
+  background-color: rgba(1, 10, 19, 0.55) !important;
+}
+
 /* scene-wrap lives here because the animation name must be known at class-definition time */
 .scene-wrap {
   position: absolute;

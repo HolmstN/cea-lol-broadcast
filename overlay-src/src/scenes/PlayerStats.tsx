@@ -134,11 +134,6 @@ function PlayerRow(
               : stat === "d"
               ? "text-loss"
               : "text-gold-mid";
-            const statLabel = stat === "k"
-              ? "Kills"
-              : stat === "d"
-              ? "Deaths"
-              : "Assists";
             return (
               <>
                 {i > 0 && (

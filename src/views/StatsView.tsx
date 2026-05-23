@@ -23,6 +23,16 @@ export default function StatsView() {
   const [errors,  setErrors]  = useState<Record<number, string>>({});
 
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+
+  async function runBackfill() {
+    try {
+      const msg = await invoke<string>("backfill_player_links");
+      setBackfillMsg(msg);
+    } catch (e) {
+      setBackfillMsg("Error: " + String(e));
+    }
+  }
 
   useEffect(() => {
     invoke<{ hasKey: boolean; region: string }>("riot_get_config").then((cfg) => {
@@ -103,6 +113,10 @@ export default function StatsView() {
             : <span className="stats-key-missing">● No API key</span>}
         </span>
         <span className="stats-limits">20 req/s · 100 req/2 min</span>
+        <button className="btn-secondary stats-config-btn" onClick={runBackfill}>
+          Relink Players
+        </button>
+        {backfillMsg && <span className="muted" style={{ fontSize: 12 }}>{backfillMsg}</span>}
         <button
           className="btn-secondary stats-config-btn"
           onClick={() => { setConfigOpen((v) => !v); setSaveError(null); }}

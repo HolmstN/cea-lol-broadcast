@@ -73,6 +73,7 @@ export default function MatchView() {
   const [editInputs, setEditInputs]     = useState<Record<string, GameEditState>>({});
   const [editLoading, setEditLoading]   = useState(false);
   const [editErr, setEditErr]           = useState<string | null>(null);
+  const [metaLog, setMetaLog]           = useState<string[] | null>(null);
 
   useEffect(() => {
     invoke<CeaSettings>("get_cea_settings").then(s => setSettings(s)).catch(() => {});
@@ -89,6 +90,32 @@ export default function MatchView() {
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   }
   function editKey(matchId: number, gameNumber: number) { return `${matchId}-${gameNumber}`; }
+
+  async function handleExportGameMeta() {
+    try {
+      const path = await invoke<string>("export_game_metadata_csv", { competitionId: settings.competitionId });
+      setMetaLog([`Saved to: ${path}`]);
+    } catch (e) {
+      setMetaLog(["Export failed: " + String(e)]);
+    }
+  }
+
+  async function handleImportGameMeta(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const csv = await file.text();
+    e.target.value = "";
+    try {
+      const log = await invoke<string[]>("import_game_metadata_csv", {
+        competitionId: settings.competitionId,
+        csv,
+      });
+      setMetaLog(log);
+      loadEditMatches();
+    } catch (e) {
+      setMetaLog(["Error: " + String(e)]);
+    }
+  }
 
   async function loadEditMatches() {
     if (!settings.competitionId) return;
@@ -373,7 +400,7 @@ export default function MatchView() {
     }
   }
 
-  async function handleImportCsv(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImportCsv(e: React.ChangeEvent<HTMLInputElement>, overwrite = false) {
     const file = e.target.files?.[0];
     if (!file) return;
     const csv = await file.text();
@@ -382,10 +409,12 @@ export default function MatchView() {
       const log = await invoke<string[]>("import_matches_csv", {
         competitionId: settings.competitionId,
         csv,
+        overwrite,
       });
       setImportLog(log);
       const importedIds = new Set(
-        log.filter(l => l.includes("imported")).map(l => l.split(":")[0].replace("Match ", "").trim())
+        log.filter(l => l.includes("imported") || l.includes("overwritten"))
+           .map(l => l.split(":")[0].replace("Match ", "").trim())
       );
       setQueue(prev => prev.map(m => importedIds.has(m.matchId) ? { ...m, imported: true, selected: false } : m));
     } catch (e) {
@@ -507,6 +536,10 @@ export default function MatchView() {
           <label className="btn-secondary match-csv-label">
             Import CSV
             <input type="file" accept=".csv" style={{ display: "none" }} onChange={handleImportCsv} />
+          </label>
+          <label className="btn-secondary match-csv-label">
+            Import CSV (Override)
+            <input type="file" accept=".csv" style={{ display: "none" }} onChange={e => handleImportCsv(e, true)} />
           </label>
         </div>
         {importLog && (
@@ -717,6 +750,18 @@ export default function MatchView() {
               <button className="btn-secondary" disabled={editMatchIdx >= editMatches.length - 1} onClick={() => setEditMatchIdx(i => i + 1)}>Next →</button>
             </div>
           </>
+        )}
+        <div className="match-csv-row" style={{ marginTop: 16 }}>
+          <button className="btn-secondary" onClick={handleExportGameMeta} disabled={!settings.competitionId || editMatches.length === 0}>Export Game Metadata</button>
+          <label className="btn-secondary match-csv-label">
+            Import Game Metadata
+            <input type="file" accept=".csv" style={{ display: "none" }} onChange={handleImportGameMeta} />
+          </label>
+        </div>
+        {metaLog && (
+          <div className="match-import-log">
+            {metaLog.map((l, i) => <div key={i} className={l.startsWith("Error") || l.includes("skipped") ? "rank-error-text" : "muted"}>{l}</div>)}
+          </div>
         )}
         <div className="match-step-actions">
           <button className="btn-secondary" onClick={() => setStep("config")}>Back</button>

@@ -1774,6 +1774,26 @@ textarea { resize: vertical; }
 }
 .match-players-select:focus { border-color: #444; }
 
+/* ── Season name in header ───────────────────────────────────────────────── */
+.season-ctx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.season-ctx-label {
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.season-ctx-input {
+  width: 160px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 /* ── Match context bar (shared team selector in header) ──────────────────── */
 .match-ctx-bar {
   display: flex;
@@ -1792,6 +1812,12 @@ textarea { resize: vertical; }
 .match-ctx-vs {
   font-size: 11px;
   color: #444;
+  flex-shrink: 0;
+}
+.match-ctx-swap {
+  padding: 3px 8px;
+  font-size: 14px;
+  line-height: 1;
   flex-shrink: 0;
 }
 .match-ctx-select {

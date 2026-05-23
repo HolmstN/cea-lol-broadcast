@@ -11,6 +11,7 @@ interface StreamerViewProps {
   blueRoles: Record<RoleKey, number | "">;
   redRoles:  Record<RoleKey, number | "">;
   teams: Team[];
+  seasonName: string;
 }
 
 // ─── Scene definitions ──────────────────────────────
@@ -66,7 +67,8 @@ const SCENES: Record<SceneId, SceneDef> = {
     icon: "◆",
     description: "Pre-show waiting screen",
     params: {
-      event: { label: "Event Name", placeholder: "Spring Season 2025" },
+      event:   { label: "Event Name",           placeholder: "Spring Season 2025" },
+      bgImage: { label: "Background Image URL", placeholder: "" },
     },
   },
   "match-intro": {
@@ -78,10 +80,11 @@ const SCENES: Record<SceneId, SceneDef> = {
       team2:    { label: "Red Side Team",    placeholder: "Team Bravo" },
       record1:  { label: "Blue Side Record", placeholder: "6W – 2L" },
       record2:  { label: "Red Side Record",  placeholder: "5W – 3L" },
-      round:    { label: "Round",            placeholder: "Quarterfinals" },
+      round:    { label: "Round",             placeholder: "Quarterfinals" },
       matchNum: { label: "Match Number",     placeholder: "Match 1 of 3" },
       format:   { label: "Format",           placeholder: "Best of 3" },
       event:    { label: "Event Name",       placeholder: "Spring Season 2025" },
+      bgImage:  { label: "Background Image URL", placeholder: "" },
     },
   },
   "lower-third": {
@@ -107,10 +110,11 @@ const SCENES: Record<SceneId, SceneDef> = {
       team2:     { label: "Red Side Team",   placeholder: "Team Bravo" },
       score1:    { label: "Blue Side Score", placeholder: "1" },
       score2:    { label: "Red Side Score",  placeholder: "0" },
-      sub:       { label: "Subtitle",        placeholder: "Game 2 Starting Shortly" },
-      countdown: { label: "Countdown (sec)", placeholder: "0", hint: "0 = no countdown" },
-      round:     { label: "Round",           placeholder: "Quarterfinals" },
-      event:     { label: "Event Name",      placeholder: "Spring Season 2025" },
+      sub:       { label: "Subtitle",             placeholder: "Game 2 Starting Shortly" },
+      countdown: { label: "Countdown (sec)",      placeholder: "0", hint: "0 = no countdown" },
+      round:     { label: "Round",                placeholder: "Quarterfinals" },
+      event:     { label: "Event Name",           placeholder: "Spring Season 2025" },
+      bgImage:   { label: "Background Image URL", placeholder: "" },
     },
   },
   "match-result": {
@@ -124,10 +128,11 @@ const SCENES: Record<SceneId, SceneDef> = {
       loserScore:  { label: "Loser Wins",     placeholder: "1" },
       winnerSide:  { label: "Winner Side",    placeholder: "Blue Side" },
       loserSide:   { label: "Loser Side",     placeholder: "Red Side" },
-      winsText:    { label: "Outcome Text",   placeholder: "Advances to Semifinals" },
-      round:       { label: "Round",          placeholder: "Quarterfinals" },
-      format:      { label: "Format",         placeholder: "Best of 3" },
-      event:       { label: "Event Name",     placeholder: "Spring Season 2025" },
+      winsText:    { label: "Outcome Text",        placeholder: "Advances to Semifinals" },
+      round:       { label: "Round",               placeholder: "Quarterfinals" },
+      format:      { label: "Format",              placeholder: "Best of 3" },
+      event:       { label: "Event Name",          placeholder: "Spring Season 2025" },
+      bgImage:     { label: "Background Image URL", placeholder: "" },
     },
   },
   "player-stats": {
@@ -135,8 +140,9 @@ const SCENES: Record<SceneId, SceneDef> = {
     icon: "📊",
     description: "Team roster stats by role",
     params: {
-      teamName: { label: "Team Name", placeholder: "Team Alpha" },
-      event:    { label: "Event Name", placeholder: "Spring Season 2025" },
+      teamName: { label: "Team Name",            placeholder: "Team Alpha" },
+      event:    { label: "Event Name",           placeholder: "Spring Season 2025" },
+      bgImage:  { label: "Background Image URL", placeholder: "" },
       ...makeRoleParams(""),
     },
   },
@@ -145,9 +151,10 @@ const SCENES: Record<SceneId, SceneDef> = {
     icon: "⚔",
     description: "Head-to-head role comparison",
     params: {
-      team1: { label: "Blue Side Team", placeholder: "Team Alpha" },
-      team2: { label: "Red Side Team",  placeholder: "Team Bravo" },
-      event: { label: "Event Name",     placeholder: "Spring Season 2025" },
+      team1:   { label: "Blue Side Team",        placeholder: "Team Alpha" },
+      team2:   { label: "Red Side Team",         placeholder: "Team Bravo" },
+      event:   { label: "Event Name",            placeholder: "Spring Season 2025" },
+      bgImage: { label: "Background Image URL",  placeholder: "" },
       ...makeRoleParams("b_"),
       ...makeRoleParams("r_"),
     },
@@ -157,11 +164,12 @@ const SCENES: Record<SceneId, SceneDef> = {
     icon: "★",
     description: "Single player feature card",
     params: {
-      name:  { label: "Player Name", placeholder: "Player" },
-      team:  { label: "Team",        placeholder: "Team Alpha" },
-      role:  { label: "Role", type: "select", options: ["Top", "Jungle", "Mid", "ADC", "Support"] },
-      rank:  { label: "Rank",        placeholder: "Diamond I" },
-      event: { label: "Event Name",  placeholder: "Spring Season 2025" },
+      name:    { label: "Player Name",           placeholder: "Player" },
+      team:    { label: "Team",                  placeholder: "Team Alpha" },
+      role:    { label: "Role", type: "select", options: ["Top", "Jungle", "Mid", "ADC", "Support"] },
+      rank:    { label: "Rank",                  placeholder: "Diamond I" },
+      event:   { label: "Event Name",            placeholder: "Spring Season 2025" },
+      bgImage: { label: "Background Image URL",  placeholder: "" },
       game_wins:    { label: "Game Wins",    hidden: true },
       game_losses:  { label: "Game Losses",  hidden: true },
       game_wr:      { label: "Game WR",      hidden: true },
@@ -188,7 +196,9 @@ const SCENE_ORDER: SceneId[] = [
   "player-stats", "matchup-stats", "player-spotlight",
 ];
 
-const OVERLAY_URL = "http://localhost:5174";
+const OVERLAY_URL = import.meta.env.DEV
+  ? "http://localhost:5174"
+  : "http://localhost:7234/react-dist";
 const HAS_PREVIEW: Set<SceneId> = new Set([
   "starting-soon", "match-intro", "lower-third", "break", "match-result",
   "player-stats", "matchup-stats", "player-spotlight",
@@ -211,7 +221,7 @@ function defaultParams(): AllParams {
   return result;
 }
 
-export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayers, blueRoles, redRoles, teams }: StreamerViewProps) {
+export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayers, blueRoles, redRoles, teams, seasonName }: StreamerViewProps) {
   const [liveScene, setLiveScene] = useState<SceneId>("idle");
   const [selected, setSelected]   = useState<SceneId>("idle");
   const [params, setParams]       = useState<AllParams>(defaultParams);
@@ -240,6 +250,20 @@ export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayer
       })
       .catch(() => {});
   }, []);
+
+  // Sync season name to `event` param for all scenes that expose it
+  useEffect(() => {
+    if (!seasonName) return;
+    setParams(prev => {
+      const next = { ...prev };
+      for (const id of SCENE_ORDER) {
+        if ((SCENES[id].params as Record<string, ParamDef>).event !== undefined) {
+          next[id] = { ...next[id], event: seasonName };
+        }
+      }
+      return next;
+    });
+  }, [seasonName]);
 
   // Auto-populate team names across scenes when shared match context changes
   useEffect(() => {
@@ -339,6 +363,10 @@ export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayer
     return durSec > 0 ? (total / (durSec / 60)).toFixed(1) : "—";
   }
 
+  const ROLE_KEY_TO_DB: Record<RoleKey, string> = {
+    top: "Top", jg: "Jungle", mid: "Mid", adc: "ADC", sup: "Support",
+  };
+
   async function pickRolePlayer(
     sceneId: SceneId,
     prefix: string,
@@ -356,7 +384,7 @@ export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayer
     try {
       const [ext, champs] = await Promise.all([
         invoke<PlayerExtendedStats>("get_player_extended_stats", { playerId }),
-        invoke<ChampionStat[]>("get_player_champion_stats", { playerId, limit: 1 }),
+        invoke<ChampionStat[]>("get_player_champion_stats", { playerId, limit: 1, role: ROLE_KEY_TO_DB[roleKey] }),
       ]);
       const fav = champs[0];
       const avgK = ext.gameWins + ext.gameLosses > 0 ? (ext.totalKills / (ext.gameWins + ext.gameLosses)).toFixed(1) : "—";
@@ -500,7 +528,7 @@ export default function StreamerView({ blueTeam, redTeam, bluePlayers, redPlayer
         <div className="obs-instructions">
           <div className="obs-title">OBS Setup</div>
           <div className="obs-step">1. Add Browser Source</div>
-          <div className="obs-step">2. Point to <code>http://localhost:5174</code></div>
+          <div className="obs-step">2. Point to <code>{OVERLAY_URL}</code></div>
           <div className="obs-step">3. Set 1920 × 1080</div>
           <div className="obs-ws">WS: <code>ws://127.0.0.1:7233</code></div>
         </div>

@@ -47,8 +47,17 @@ export default function App() {
 
   const SceneComp = SCENES[cur.scene] ?? Idle;
 
+  const bgImage = cur.params.bgImage;
+
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className={`relative w-full h-full overflow-hidden${bgImage ? ' has-custom-bg' : ''}`}>
+      {bgImage && (
+        <img
+          src={bgImage}
+          className="absolute inset-0 w-full h-full object-cover"
+          alt=""
+        />
+      )}
       <div className="scene-wrap" key={cur.key}>
         <SceneComp params={cur.params} />
       </div>

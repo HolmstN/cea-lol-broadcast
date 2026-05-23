@@ -16,6 +16,7 @@ type Tab = "live" | "teams" | "stats" | "match" | "streamer";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("live");
+  const [seasonName, setSeasonName] = useState("Spring Season 2025");
 
   // Shared match context — persists across tab switches
   const [teams, setTeams]           = useState<Team[]>([]);
@@ -31,15 +32,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (blueTeamId === "") { setBluePlayers([]); return; }
+    if (blueTeamId === "") { setBluePlayers([]); setBlueRoles(EMPTY_ROLES); return; }
     invoke<Player[]>("get_players", { teamId: blueTeamId }).then(setBluePlayers).catch(() => {});
-    setBlueRoles(EMPTY_ROLES);
   }, [blueTeamId]);
 
   useEffect(() => {
-    if (redTeamId === "") { setRedPlayers([]); return; }
+    if (redTeamId === "") { setRedPlayers([]); setRedRoles(EMPTY_ROLES); return; }
     invoke<Player[]>("get_players", { teamId: redTeamId }).then(setRedPlayers).catch(() => {});
-    setRedRoles(EMPTY_ROLES);
   }, [redTeamId]);
 
   const blueTeam = teams.find(t => t.id === blueTeamId) ?? null;
@@ -59,6 +58,17 @@ export default function App() {
           <button className={`tab ${tab === "streamer" ? "active" : ""}`} onClick={() => setTab("streamer")}>Streamer</button>
         </nav>
 
+        <label className="season-ctx">
+          <span className="season-ctx-label">Season</span>
+          <input
+            type="text"
+            className="season-ctx-input"
+            value={seasonName}
+            onChange={e => setSeasonName(e.target.value)}
+            placeholder="Spring Season 2025"
+          />
+        </label>
+
         {showCtx && teams.length > 0 && (
           <div className="match-ctx-bar">
             <span className="match-ctx-label">Match:</span>
@@ -70,7 +80,18 @@ export default function App() {
               <option value="">— Blue Side —</option>
               {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <span className="match-ctx-vs">vs</span>
+            <button
+              className="btn-secondary match-ctx-swap"
+              title="Swap blue/red sides"
+              onClick={() => {
+                const tmpId    = blueTeamId;
+                const tmpRoles = blueRoles;
+                setBlueTeamId(redTeamId);
+                setRedTeamId(tmpId);
+                setBlueRoles(redRoles);
+                setRedRoles(tmpRoles);
+              }}
+            >⇄</button>
             <select
               className="match-ctx-select match-ctx-red"
               value={redTeamId}
@@ -136,6 +157,7 @@ export default function App() {
             bluePlayers={bluePlayers} redPlayers={redPlayers}
             blueRoles={blueRoles} redRoles={redRoles}
             teams={teams}
+            seasonName={seasonName}
           />
         )}
       </div>

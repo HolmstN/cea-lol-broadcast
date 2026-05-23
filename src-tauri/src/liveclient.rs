@@ -191,12 +191,9 @@ impl LiveClientPoller {
                 }
 
                 let ev_id = next_event_id.load(Ordering::Relaxed);
-                let url = format!(
-                    "https://127.0.0.1:2999/liveclientdata/allgamedata?eventID={}",
-                    ev_id
-                );
+                let url = "https://127.0.0.1:2999/liveclientdata/allgamedata";
 
-                match client.get(&url).send().await {
+                match client.get(url).send().await {
                     Ok(resp) if resp.status().is_success() => {
                         match resp.json::<AllGameData>().await {
                             Ok(data) => {
@@ -277,23 +274,25 @@ impl LiveClientPoller {
                                     },
                                 );
 
-                                // Advance event cursor past what we just received
-                                let max_id = data
+                                // Advance event cursor past new events (client-side dedup —
+                                // we no longer pass eventID in the URL so the response always
+                                // contains all events; we filter here to avoid re-processing).
+                                let max_new_id = data
                                     .events
                                     .events
                                     .iter()
+                                    .filter(|e| e.event_id >= ev_id)
                                     .map(|e| e.event_id)
-                                    .max()
-                                    .unwrap_or(ev_id.saturating_sub(1));
-                                if max_id >= ev_id {
-                                    next_event_id.store(max_id + 1, Ordering::Relaxed);
+                                    .max();
+                                if let Some(m) = max_new_id {
+                                    next_event_id.store(m + 1, Ordering::Relaxed);
                                 }
 
                                 // On first tick: replay historic objectives but skip kills.
                                 let is_first = !initialized;
                                 initialized = true;
 
-                                // Find first-blood recipient for badge override
+                                // Find first-blood recipient for badge override (search all events).
                                 let fb_recipient = data
                                     .events
                                     .events
@@ -302,7 +301,7 @@ impl LiveClientPoller {
                                     .map(|e| e.recipient.to_lowercase());
 
                                 let mut game_ended = false;
-                                for ev in &data.events.events {
+                                for ev in data.events.events.iter().filter(|e| e.event_id >= ev_id) {
                                     match ev.event_name.as_str() {
                                         "ChampionKill" if !is_first => {
                                             let is_fb = fb_recipient

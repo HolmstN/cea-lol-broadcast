@@ -168,6 +168,18 @@ pub fn run() {
         .join("cea-lol-broadcast")
         .join("data.db");
     std::fs::create_dir_all(db_path.parent().unwrap()).expect("failed to create data dir");
+
+    // On first launch, copy seed.db from beside the exe (bundled in the installer)
+    if !db_path.exists() {
+        let seed = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("seed.db")))
+            .unwrap_or_default();
+        if seed.exists() {
+            std::fs::copy(&seed, &db_path).ok();
+        }
+    }
+
     let db = Db::open(&db_path).expect("failed to open database");
 
     let overlay = OverlayServer::new();
@@ -243,6 +255,9 @@ pub fn run() {
             get_player_champion_stats,
             get_matches_for_edit,
             update_game_metadata,
+            export_game_metadata_csv,
+            import_game_metadata_csv,
+            backfill_player_links,
             riot_set_config,
             riot_get_config,
             riot_fetch_rank,

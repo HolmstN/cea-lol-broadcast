@@ -481,6 +481,7 @@ pub fn import_matches_csv(
     db: State<Db>,
     competition_id: String,
     csv: String,
+    overwrite: bool,
 ) -> Result<Vec<String>, String> {
     #[allow(dead_code)]
     struct Row {
@@ -539,15 +540,42 @@ pub fn import_matches_csv(
 
     for match_id in ids {
         let rows = &match_map[&match_id];
-        let already: bool = conn.query_row(
-            "SELECT 1 FROM matches WHERE competition_id=?1 AND cea_match_id=?2",
+        let existing_id: Option<i64> = conn.query_row(
+            "SELECT id FROM matches WHERE competition_id=?1 AND cea_match_id=?2",
             rusqlite::params![competition_id, match_id],
-            |_| Ok(true),
-        ).unwrap_or(false);
+            |r| r.get(0),
+        ).ok();
 
-        if already {
-            log.push(format!("Match {match_id}: skipped (already imported)"));
-            continue;
+        if let Some(old_db_id) = existing_id {
+            if !overwrite {
+                log.push(format!("Match {match_id}: skipped (already imported)"));
+                continue;
+            }
+            // Reverse tournament_stats for every linked player, then delete the match
+            struct OldRow { pid: i64, won: bool, k: i64, d: i64, a: i64 }
+            let mut s = conn.prepare(
+                "SELECT player_id, won, kills, deaths, assists
+                 FROM match_players WHERE match_id = ?1 AND player_id IS NOT NULL"
+            ).map_err(|e| format!("Match {match_id}: {e}"))?;
+            let old_rows: Vec<OldRow> = s.query_map([old_db_id], |r| Ok(OldRow {
+                pid: r.get(0)?,
+                won: r.get::<_, i64>(1)? != 0,
+                k: r.get(2)?, d: r.get(3)?, a: r.get(4)?,
+            })).map_err(|e| format!("Match {match_id}: {e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Match {match_id}: {e}"))?;
+
+            for r in &old_rows {
+                conn.execute(
+                    "UPDATE tournament_stats SET
+                        wins=wins-?1, losses=losses-?2,
+                        kills=kills-?3, deaths=deaths-?4, assists=assists-?5
+                     WHERE player_id=?6",
+                    rusqlite::params![r.won as i64, (!r.won) as i64, r.k, r.d, r.a, r.pid],
+                ).map_err(|e| format!("Match {match_id} stat reversal: {e}"))?;
+            }
+            conn.execute("DELETE FROM matches WHERE id=?1", [old_db_id])
+                .map_err(|e| format!("Match {match_id}: {e}"))?;
         }
 
         conn.execute(
@@ -580,7 +608,8 @@ pub fn import_matches_csv(
                 ).map_err(|e| format!("Stats {match_id}: {e}"))?;
             }
         }
-        log.push(format!("Match {match_id}: imported {} rows", rows.len()));
+        let action = if existing_id.is_some() { "overwritten" } else { "imported" };
+        log.push(format!("Match {match_id}: {action} {} rows", rows.len()));
     }
     Ok(log)
 }
@@ -635,9 +664,15 @@ pub fn get_player_extended_stats(db: State<Db>, player_id: i64) -> Result<Player
 }
 
 #[tauri::command]
-pub fn get_player_champion_stats(db: State<Db>, player_id: i64, limit: Option<i64>) -> Result<Vec<ChampionStat>, String> {
+pub fn get_player_champion_stats(
+    db: State<Db>,
+    player_id: i64,
+    limit: Option<i64>,
+    role: Option<String>,
+) -> Result<Vec<ChampionStat>, String> {
     let conn = db.0.lock().unwrap();
     let lim = limit.unwrap_or(5);
+    // ?3 IS NULL → no role filter; otherwise case-insensitive match on stored role
     let mut stmt = conn.prepare(
         "SELECT champion,
                 COUNT(*) as games,
@@ -648,11 +683,12 @@ pub fn get_player_champion_stats(db: State<Db>, player_id: i64, limit: Option<i6
                 COALESCE(SUM(assists), 0) as assists
          FROM match_players
          WHERE player_id = ?1 AND champion IS NOT NULL AND champion != ''
+         AND (?3 IS NULL OR LOWER(role) = LOWER(?3))
          GROUP BY champion
          ORDER BY games DESC, wins DESC
          LIMIT ?2",
     ).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params![player_id, lim], |row| {
+    let rows = stmt.query_map(rusqlite::params![player_id, lim, role], |row| {
         Ok(ChampionStat {
             champion: row.get(0)?,
             games:    row.get(1)?,
@@ -757,6 +793,177 @@ pub fn get_matches_for_edit(db: State<Db>, competition_id: String) -> Result<Vec
     }
     Ok(result)
 }
+
+// --- Backfill unlinked match_players rows ---
+
+#[tauri::command]
+pub fn backfill_player_links(db: State<Db>) -> Result<String, String> {
+    let conn = db.0.lock().unwrap();
+
+    // Find all distinct summoner names that have unlinked rows
+    let mut unlinked_stmt = conn.prepare(
+        "SELECT DISTINCT summoner_name FROM match_players WHERE player_id IS NULL"
+    ).map_err(|e| e.to_string())?;
+
+    let names: Vec<String> = unlinked_stmt.query_map([], |r| r.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut linked = 0usize;
+    let mut skipped = 0usize;
+
+    for name in &names {
+        let pid: Option<i64> = conn.query_row(
+            "SELECT id FROM players WHERE LOWER(summoner_name) = LOWER(?1) LIMIT 1",
+            [name], |r| r.get(0),
+        ).ok();
+
+        match pid {
+            Some(pid) => {
+                let rows = conn.execute(
+                    "UPDATE match_players SET player_id = ?1 WHERE player_id IS NULL AND LOWER(summoner_name) = LOWER(?2)",
+                    rusqlite::params![pid, name],
+                ).map_err(|e| e.to_string())?;
+                linked += rows;
+            }
+            None => { skipped += 1; }
+        }
+    }
+
+    Ok(format!("Linked {linked} row(s) across {} name(s); {skipped} name(s) not found in roster", names.len() - skipped))
+}
+
+// --- Game metadata CSV (separate from player CSV) ---
+
+#[tauri::command]
+pub fn export_game_metadata_csv(db: State<Db>, competition_id: String) -> Result<String, String> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT m.cea_match_id, mp.game_number,
+                gd.duration_sec, gd.blue_team
+         FROM matches m
+         JOIN match_players mp ON mp.match_id = m.id
+         LEFT JOIN game_durations gd ON gd.match_id = m.id AND gd.game_number = mp.game_number
+         WHERE m.competition_id = ?1
+         ORDER BY CAST(m.cea_match_id AS INTEGER), mp.game_number",
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([&competition_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+            row.get::<_, Option<i64>>(3)?,
+        ))
+    }).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| e.to_string())?;
+
+    if rows.is_empty() {
+        return Err("No imported matches found for this competition".into());
+    }
+
+    let mut out = String::from("match_id,game_number,duration_sec,blue_team\n");
+    for (mid, gn, dur, blue) in &rows {
+        out.push_str(&format!(
+            "{},{},{},{}\n",
+            mid, gn,
+            dur.map(|d| d.to_string()).unwrap_or_default(),
+            blue.map(|b| b.to_string()).unwrap_or_default(),
+        ));
+    }
+
+    let path = csv_export_path(&format!("game_metadata_{}.csv", competition_id));
+    std::fs::write(&path, &out).map_err(|e| e.to_string())?;
+    reveal_in_explorer(&path);
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn import_game_metadata_csv(
+    db: State<Db>,
+    competition_id: String,
+    csv: String,
+) -> Result<Vec<String>, String> {
+    let mut lines = csv.lines();
+    let header = lines.next().ok_or("Empty CSV")?;
+    let cols: Vec<String> = header.split(',').map(|s| s.trim().to_lowercase()).collect();
+    let col = |name: &str| -> Result<usize, String> {
+        cols.iter().position(|c| c == name)
+            .ok_or_else(|| format!("Missing column '{name}'"))
+    };
+    let (im, ig, id, ib) = (
+        col("match_id")?, col("game_number")?, col("duration_sec")?, col("blue_team")?,
+    );
+
+    let conn = db.0.lock().unwrap();
+    let mut log = Vec::new();
+
+    for line in lines {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let f = parse_csv_row(line);
+        let g = |i: usize| f.get(i).map(|s| s.as_str()).unwrap_or("").to_string();
+
+        let match_id = g(im);
+        let game_number: i64 = g(ig).parse().unwrap_or(1);
+        if match_id.is_empty() { continue; }
+
+        let dur_raw = g(id);
+        let duration_sec: Option<i64> = if dur_raw.is_empty() {
+            None
+        } else if let Ok(n) = dur_raw.parse::<i64>() {
+            Some(n)
+        } else {
+            let parts: Vec<&str> = dur_raw.splitn(2, ':').collect();
+            if parts.len() == 2 {
+                match (parts[0].parse::<i64>(), parts[1].parse::<i64>()) {
+                    (Ok(m), Ok(s)) => Some(m * 60 + s),
+                    _ => {
+                        log.push(format!("Match {match_id} G{game_number}: invalid duration '{dur_raw}', skipped"));
+                        continue;
+                    }
+                }
+            } else {
+                log.push(format!("Match {match_id} G{game_number}: invalid duration '{dur_raw}', skipped"));
+                continue;
+            }
+        };
+
+        let blue_raw = g(ib);
+        let blue_team: Option<i64> = if blue_raw.is_empty() { None } else { blue_raw.parse().ok() };
+
+        let db_match_id: Option<i64> = conn.query_row(
+            "SELECT id FROM matches WHERE competition_id=?1 AND cea_match_id=?2",
+            rusqlite::params![competition_id, match_id],
+            |r| r.get(0),
+        ).ok();
+
+        let Some(db_match_id) = db_match_id else {
+            log.push(format!("Match {match_id}: not in DB, skipped"));
+            continue;
+        };
+
+        conn.execute(
+            "INSERT INTO game_durations (match_id, game_number, duration_sec, blue_team)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(match_id, game_number) DO UPDATE SET
+                 duration_sec = excluded.duration_sec,
+                 blue_team    = excluded.blue_team",
+            rusqlite::params![db_match_id, game_number, duration_sec, blue_team],
+        ).map_err(|e| format!("Match {match_id} G{game_number}: {e}"))?;
+
+        log.push(format!("Match {match_id} G{game_number}: updated"));
+    }
+
+    if log.is_empty() {
+        return Err("No valid rows found".into());
+    }
+    Ok(log)
+}
+
+// --- update_game_metadata ---
 
 #[tauri::command]
 pub fn update_game_metadata(
