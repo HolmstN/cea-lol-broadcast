@@ -46,7 +46,7 @@ function PlayerRow(
       className="flex-1 flex items-stretch relative overflow-hidden opacity-0 border border-gold-mid/10 border-l-0"
       style={{
         background:
-          "linear-gradient(90deg, rgba(10,20,40,0.82) 0%, rgba(5,12,24,0.62) 100%)",
+          "linear-gradient(90deg, rgba(10,20,40,0.82) 0%, rgba(5,12,24,0.62) 0%)",
         animation:
           `psRowIn 0.55s cubic-bezier(0.25,0.46,0.45,0.94) ${delay}s both`,
       }}
@@ -223,30 +223,30 @@ export default function PlayerStats({ params }: { params: Params }) {
         }}
       />
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-center gap-[1.25vw] z-10">
+      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-around gap-[5.5vw] z-10">
         <span
           className="font-cinzel text-[1.25vw] font-black tracking-[0.12em] text-gold-light uppercase"
           style={{ textShadow: "0 0 20px rgba(200,155,60,0.4)" }}
         >
           {p(params, "teamName", "Team Alpha")}
         </span>
-        <div
+        {/* <div
           className="w-1 h-1 bg-gold-bright rotate-45"
           style={{ boxShadow: "0 0 5px #C89B3C" }}
-        />
-        <span className="font-cinzel text-[0.68vw] font-bold tracking-[0.3em] text-gold-mid uppercase">
+        /> */}
+        <span className="font-cinzel text-[1.08vw] font-bold tracking-[0.3em] text-gold-mid uppercase">
           Player Statistics
         </span>
-        <div
+        {/* <div
           className="w-1 h-1 bg-gold-bright rotate-45"
           style={{ boxShadow: "0 0 5px #C89B3C" }}
-        />
-        <span className="font-cinzel text-[0.68vw] font-bold tracking-[0.3em] text-gold-mid uppercase">
-          {p(params, "event", "Spring Season 2025")}
-        </span>
+        /> */}
+        {/* <span className="font-cinzel text-[0.68vw] font-bold tracking-[0.3em] text-gold-mid uppercase">
+          {p(params, "event", "Spring Season 2026")}
+        </span> */}
       </div>
       {/* Rows */}
-      <div className="absolute top-[5.93vh] bottom-[4.63vh] left-0 right-0 flex flex-col p-[1.48vh_2.6vw] gap-[0.74vh] z-10">
+      <div className="absolute top-[5.93vh] bottom-[4.63vh] left-0 right-0 flex flex-col p-[0vh_2.6vw] gap-[0.74vh] z-10 h-[80%]">
         {(["top", "jg", "mid", "adc", "sup"] as const).map((role, i) => (
           <PlayerRow
             key={role}

@@ -28,11 +28,11 @@ export default function PlayerSpotlight({ params }: { params: Params }) {
       <div className="absolute left-0 right-0 h-0.5 opacity-20" style={{ background:'linear-gradient(90deg, transparent, #0BC4E3, transparent)', animation:'scan 7s ease-in-out infinite' }} />
 
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-center gap-[1.04vw] z-10">
-        {['Player Spotlight', q('event','Spring Season 2025'), 'Corporate Esports Association'].map((t, i, a) => (
+      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-between px-25 gap-[1.04vw] z-10">
+        {['Player Spotlight', 'Corporate Esports Association'].map((t, i, a) => (
           <>
-            <span key={t} className="font-cinzel text-[0.68vw] font-bold tracking-[0.3em] text-gold-mid uppercase">{t}</span>
-            {i < a.length - 1 && <div key={`s${i}`} className="w-1 h-1 bg-gold-bright rotate-45" style={{ boxShadow:'0 0 5px #C89B3C' }} />}
+            <span key={t} className="font-cinzel text-[1.08vw] font-bold tracking-[0.3em] text-gold-mid uppercase">{t}</span>
+            {/* {i < a.length - 1 && <div key={`s${i}`} className="w-1 h-1 bg-gold-bright rotate-45" style={{ boxShadow:'0 0 5px #C89B3C' }} />} */}
           </>
         ))}
       </div>

@@ -68,7 +68,7 @@ function MatchupRow({ role, params, delay }: { role: string; params: Record<stri
   return (
     <div
       className="flex-1 flex items-stretch overflow-hidden opacity-0 border border-gold-mid/10"
-      style={{ background:'linear-gradient(90deg, rgba(10,20,40,0.82) 0%, rgba(5,12,24,0.62) 100%)', animation:`psRowIn 0.55s cubic-bezier(0.25,0.46,0.45,0.94) ${delay}s both` }}
+      style={{ background:'linear-gradient(90deg, rgba(10,20,40,0.82) 0%, rgba(5,12,24,0.62) 50%)', animation:`psRowIn 0.55s cubic-bezier(0.25,0.46,0.45,0.94) ${delay}s both` }}
     >
       <div className="w-1 shrink-0 bg-blue-bright" style={{ boxShadow:'0 0 8px rgba(11,196,227,0.33)' }} />
       <div className="flex-1 min-w-0 flex items-center px-[0.83vw]">
@@ -111,21 +111,15 @@ export default function MatchupStats({ params }: { params: Params }) {
       <div className="absolute -inset-[100px] opacity-5" style={{ backgroundSize:'100px 115px', animation:'hexDrift 25s linear infinite', backgroundImage:HEX_BG }} />
       <div className="absolute inset-0" style={{ background:'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(3,38,64,0.5) 0%, transparent 70%), radial-gradient(ellipse 110% 40% at 50% 100%, rgba(1,10,19,0.9) 0%, transparent 55%)' }} />
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-center gap-[1.04vw] z-10">
-        <span
-          className="font-cinzel text-[1.56vw] font-black text-blue-bright tracking-[0.06em] uppercase"
-          style={{ textShadow: '0 0 18px rgba(11,196,227,0.5)' }}
-        >{p(params,'team1','Team Alpha')}</span>
-        <span className="font-cinzel text-[1.04vw] font-bold text-gold-mid tracking-[0.25em]">VS</span>
-        <span
-          className="font-cinzel text-[1.56vw] font-black text-loss tracking-[0.06em] uppercase"
-          style={{ textShadow: '0 0 18px rgba(229,115,115,0.5)' }}
-        >{p(params,'team2','Team Bravo')}</span>
-        <div className="w-1 h-1 bg-gold-bright rotate-45" style={{ boxShadow:'0 0 5px #C89B3C' }} />
-        <span className="font-cinzel text-[0.68vw] text-gold-mid tracking-[0.2em] uppercase">{p(params,'event','Spring Season 2025')}</span>
+      <div className="absolute top-0 left-0 right-0 h-[5.93vh] bg-lol-bg/[96%] border-b border-gold-mid/25 flex items-center justify-center gap-[0.83vw] z-10">
+        <span className="font-cinzel text-[1.15vw] font-bold text-blue-bright tracking-[0.08em]">{p(params,'team1','Team Alpha')}</span>
+        <span className="font-cinzel text-[0.94vw] font-bold text-gold-mid tracking-[0.2em]">VS</span>
+        <span className="font-cinzel text-[1.15vw] font-bold text-loss tracking-[0.08em]">{p(params,'team2','Team Bravo')}</span>
+        {/* <div className="w-1 h-1 bg-gold-bright rotate-45" style={{ boxShadow:'0 0 5px #C89B3C' }} /> */}
+        {/* <span className="font-cinzel text-[0.68vw] text-gold-mid tracking-[0.2em] uppercase">{p(params,'event','Spring Season 2026')}</span> */}
       </div>
       {/* Rows */}
-      <div className="absolute top-[5.93vh] bottom-[4.63vh] left-0 right-0 flex flex-col p-[1.48vh_2.6vw] gap-[0.74vh] z-10">
+      <div className="absolute top-[5.93vh] bottom-[4.63vh] left-0 right-0 flex flex-col p-[0vh_2.6vw] gap-[0.74vh] z-10 h-[80%]">
         {(['top','jg','mid','adc','sup'] as const).map((role, i) => (
           <MatchupRow key={role} role={role} params={params} delay={0.08 + i * 0.1} />
         ))}
